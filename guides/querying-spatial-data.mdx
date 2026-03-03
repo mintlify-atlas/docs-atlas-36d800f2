@@ -247,6 +247,23 @@ $exists = Place::query()
 echo $exists; // true
 ```
 
+### whereOverlaps
+
+Filters records where geometries overlap using [ST_Overlaps](https://dev.mysql.com/doc/refman/8.0/en/spatial-relation-functions-object-shapes.html#function_st-overlaps).
+
+```php
+$polygon1 = Polygon::fromJson('{"type":"Polygon","coordinates":[[[-1,-1],[1,-1],[1,1],[-1,1],[-1,-1]]]}');
+$polygon2 = Polygon::fromJson('{"type":"Polygon","coordinates":[[[0,0],[2,0],[2,2],[0,2],[0,0]]]}');
+
+Place::create(['area' => $polygon1]);
+
+$exists = Place::query()
+    ->whereOverlaps('area', $polygon2)
+    ->exists();
+
+echo $exists; // true
+```
+
 ### whereEquals
 
 Filters records where geometries are equal using [ST_Equals](https://dev.mysql.com/doc/refman/8.0/en/spatial-relation-functions-object-shapes.html#function_st-equals).

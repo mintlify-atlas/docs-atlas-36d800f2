@@ -531,6 +531,40 @@ Place::query()
 
 ---
 
+### whereOverlaps
+
+Filters records where the geometry spatially overlaps another geometry. Uses MySQL's [ST_Overlaps](https://dev.mysql.com/doc/refman/8.0/en/spatial-relation-functions-object-shapes.html#function_st-overlaps) function.
+
+```php
+whereOverlaps(
+    Geometry|string $column,
+    Geometry|string $geometryOrColumn
+): void
+```
+
+<ParamField path="column" type="Geometry|string" required>
+  The column name or Geometry object to test
+</ParamField>
+
+<ParamField path="geometryOrColumn" type="Geometry|string" required>
+  The geometry object or column name to test against
+</ParamField>
+
+**Example:**
+
+```php
+$polygon1 = Polygon::fromJson('{"type":"Polygon","coordinates":[[[-1,-1],[1,-1],[1,1],[-1,1],[-1,-1]]]}');
+$polygon2 = Polygon::fromJson('{"type":"Polygon","coordinates":[[[0,0],[2,0],[2,2],[0,2],[0,0]]]}');
+
+Place::create(['area' => $polygon1]);
+
+Place::query()
+    ->whereOverlaps('area', $polygon2)
+    ->exists(); // true (polygons overlap)
+```
+
+---
+
 ### whereEquals
 
 Filters records where the geometry is spatially equal to another geometry. Uses MySQL's [ST_Equals](https://dev.mysql.com/doc/refman/8.0/en/spatial-relation-functions-object-shapes.html#function_st-equals) function.
