@@ -1,0 +1,303 @@
+---
+title: Geometry Objects
+description: Understanding the geometry object hierarchy and available spatial types in Laravel Eloquent Spatial
+---
+
+## Overview
+
+Laravel Eloquent Spatial provides a comprehensive set of geometry objects that represent spatial data types. All geometry objects extend from the abstract `Geometry` base class and support serialization to WKT (Well-Known Text), WKB (Well-Known Binary), and GeoJSON formats.
+
+## Geometry Hierarchy
+
+The package organizes geometry types in a clear hierarchy:
+
+```
+Geometry (abstract)
+├── Point
+├── PointCollection (abstract)
+│   ├── LineString (min 2 points)
+│   └── MultiPoint (min 1 point)
+└── GeometryCollection
+    ├── MultiLineString (min 1 line)
+    ├── Polygon (collection of LineStrings)
+    └── MultiPolygon
+```
+
+## Base Geometry Class
+
+The abstract `Geometry` class (`src/Objects/Geometry.php:29`) provides core functionality for all spatial types:
+
+- **Serialization**: Convert to WKT, WKB, GeoJSON, and arrays
+- **Deserialization**: Create from WKT, WKB, GeoJSON, and arrays
+- **Laravel Integration**: Implements `Castable` for Eloquent model casting
+- **Macroable**: Extend with custom methods using macros
+- **SRID Support**: Every geometry has an associated Spatial Reference System Identifier
+
+### Key Methods
+
+```php
+abstract public function toWkt(): string;
+abstract public function getWktData(): string;
+abstract public function getCoordinates(): array;
+
+public function toWkb(): string;
+public function toJson($options = 0): string;
+public function toArray(): array;
+
+static public function fromWkt(string $wkt, int|Srid|null $srid = null): static;
+static public function fromWkb(string $wkb): static;
+static public function fromJson(string $geoJson, int|Srid|null $srid = null): static;
+static public function fromArray(array $geometry, int|Srid|null $srid = null): static;
+```
+
+## Point
+
+The most fundamental geometry type representing a single location in space (`src/Objects/Point.php:10`).
+
+### Properties
+
+```php
+public float $latitude;
+public float $longitude;
+public int $srid;
+```
+
+### Usage
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\Point;
+use MatanYadaev\EloquentSpatial\Enums\Srid;
+
+// Basic point with default SRID
+$point = new Point(51.5032973, -0.1217424);
+
+// Point with specific SRID (WGS84)
+$point = new Point(51.5032973, -0.1217424, Srid::WGS84);
+
+// Access coordinates
+echo $point->latitude;  // 51.5032973
+echo $point->longitude; // -0.1217424
+echo $point->srid;      // 4326
+
+// Serialization
+$wkt = $point->toWkt(); // "POINT(-0.1217424 51.5032973)"
+$json = $point->toJson(); // GeoJSON format
+```
+
+<Note>
+Note that WKT format uses longitude-latitude order (x, y), while Point constructor uses latitude-longitude order for developer convenience.
+</Note>
+
+## LineString
+
+Represents a connected line between two or more points (`src/Objects/LineString.php:7`).
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\LineString;
+use MatanYadaev\EloquentSpatial\Objects\Point;
+
+$line = new LineString([
+    new Point(51.5032973, -0.1217424),
+    new Point(51.5089928, -0.1282502),
+    new Point(51.5154563, -0.1419567),
+]);
+
+// Access points
+$points = $line->getGeometries(); // Collection of Point objects
+$firstPoint = $line[0]; // ArrayAccess support
+```
+
+<Info>
+LineString requires a minimum of 2 points. An exception will be thrown if fewer points are provided.
+</Info>
+
+## Polygon
+
+Represents an area defined by one or more LineStrings (rings). The first ring is the exterior boundary, and subsequent rings are holes (`src/Objects/Polygon.php:7`).
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\Polygon;
+use MatanYadaev\EloquentSpatial\Objects\LineString;
+use MatanYadaev\EloquentSpatial\Objects\Point;
+
+$polygon = new Polygon([
+    new LineString([
+        new Point(41.90746728266806, 12.455363273620605),
+        new Point(41.906636872349075, 12.450309991836548),
+        new Point(41.90197359839437, 12.445632219314575),
+        new Point(41.90027269624499, 12.447413206100464),
+        new Point(41.90746728266806, 12.455363273620605), // Closing point
+    ]),
+]);
+
+// Polygon with holes
+$polygonWithHole = new Polygon([
+    new LineString([...]), // Exterior ring
+    new LineString([...]), // Interior ring (hole)
+]);
+```
+
+<Warning>
+The first and last points of each LineString should be identical to form a closed ring.
+</Warning>
+
+## GeometryCollection
+
+Base class for collections of geometries (`src/Objects/GeometryCollection.php:14`). Implements `ArrayAccess` for convenient access to contained geometries.
+
+### Features
+
+- **Type Safety**: Validates that all geometries in the collection are of the correct type
+- **Minimum Count**: Enforces minimum geometry requirements for each collection type
+- **Array Access**: Access geometries using array syntax
+- **Collection Methods**: Returns geometries as Laravel Collections
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\GeometryCollection;
+use MatanYadaev\EloquentSpatial\Objects\Point;
+use MatanYadaev\EloquentSpatial\Objects\LineString;
+
+$collection = new GeometryCollection([
+    new Point(51.5032973, -0.1217424),
+    new LineString([...]),
+]);
+
+// Array access
+echo $collection[0]->latitude;
+
+// Get all geometries
+$geometries = $collection->getGeometries(); // Collection<int, Geometry>
+
+// Check existence
+if (isset($collection[0])) {
+    // ...
+}
+```
+
+## MultiPoint
+
+Collection of Point geometries (`src/Objects/MultiPoint.php:7`).
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\MultiPoint;
+use MatanYadaev\EloquentSpatial\Objects\Point;
+
+$multiPoint = new MultiPoint([
+    new Point(51.5032973, -0.1217424),
+    new Point(51.5089928, -0.1282502),
+    new Point(51.5154563, -0.1419567),
+]);
+```
+
+## MultiLineString
+
+Collection of LineString geometries (`src/Objects/MultiLineString.php:18`).
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\MultiLineString;
+use MatanYadaev\EloquentSpatial\Objects\LineString;
+use MatanYadaev\EloquentSpatial\Objects\Point;
+
+$multiLine = new MultiLineString([
+    new LineString([...]),
+    new LineString([...]),
+]);
+```
+
+## MultiPolygon
+
+Collection of Polygon geometries, useful for representing areas with multiple disconnected regions.
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\MultiPolygon;
+use MatanYadaev\EloquentSpatial\Objects\Polygon;
+use MatanYadaev\EloquentSpatial\Objects\LineString;
+
+$multiPolygon = new MultiPolygon([
+    new Polygon([...]),
+    new Polygon([...]),
+]);
+```
+
+## Extending Geometry Classes
+
+You can extend geometry classes with custom functionality using macros:
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\Geometry;
+
+// In a service provider
+Geometry::macro('getName', function (): string {
+    /** @var Geometry $this */
+    return class_basename($this);
+});
+
+// Usage
+$point = new Point(51.5032973, -0.1217424);
+echo $point->getName(); // "Point"
+```
+
+Or create custom geometry classes:
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\Point;
+
+class ExtendedPoint extends Point
+{
+    public function toCustomArray(): array
+    {
+        return [
+            'coordinates' => [
+                'latitude' => $this->latitude,
+                'longitude' => $this->longitude,
+            ],
+        ];
+    }
+}
+```
+
+## Serialization Formats
+
+All geometry objects support multiple serialization formats:
+
+### WKT (Well-Known Text)
+
+```php
+$point = new Point(51.5032973, -0.1217424);
+echo $point->toWkt(); // "POINT(-0.1217424 51.5032973)"
+```
+
+### WKB (Well-Known Binary)
+
+```php
+$wkb = $point->toWkb(); // Binary string
+$restored = Point::fromWkb($wkb);
+```
+
+### GeoJSON
+
+```php
+$json = $point->toJson();
+// {"type":"Point","coordinates":[-0.1217424,51.5032973]}
+
+$array = $point->toArray();
+// ['type' => 'Point', 'coordinates' => [-0.1217424, 51.5032973]]
+```
+
+### Feature Collection
+
+```php
+$featureCollection = $point->toFeatureCollectionJson();
+// {"type":"FeatureCollection","features":[...]}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Spatial Casts" icon="database" href="/core-concepts/spatial-casts">
+    Learn how to integrate geometry objects with Eloquent models
+  </Card>
+  <Card title="Coordinate Systems" icon="globe" href="/core-concepts/coordinate-systems">
+    Understand SRIDs and coordinate reference systems
+  </Card>
+</CardGroup>

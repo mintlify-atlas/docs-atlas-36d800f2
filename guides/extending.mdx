@@ -1,0 +1,413 @@
+---
+title: Extending Laravel Eloquent Spatial
+description: Learn how to extend the package with macros and custom geometry classes
+---
+
+## Overview
+
+Laravel Eloquent Spatial provides multiple ways to extend its functionality. You can add custom methods using macros or create custom geometry classes with additional functionality.
+
+## Extending with Macros
+
+Macros allow you to add new methods to the `Geometry` class without modifying the package source code.
+
+### Registering Macros
+
+Register macros in your service provider's `boot` method:
+
+```php
+use Illuminate\Support\ServiceProvider;
+use MatanYadaev\EloquentSpatial\Objects\Geometry;
+
+class AppServiceProvider extends ServiceProvider
+{
+    public function boot(): void
+    {
+        Geometry::macro('getName', function (): string {
+            /** @var Geometry $this */
+            return class_basename($this);
+        });
+    }
+}
+```
+
+### Using Macros
+
+Once registered, you can use the macro on any geometry object:
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\Point;
+use MatanYadaev\EloquentSpatial\Objects\Polygon;
+
+$point = new Point(51.5032973, -0.1217424);
+echo $point->getName(); // Point
+
+$polygon = new Polygon([...]);
+echo $polygon->getName(); // Polygon
+```
+
+### Practical Macro Examples
+
+#### Distance to Another Point
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\Geometry;
+use MatanYadaev\EloquentSpatial\Objects\Point;
+
+Geometry::macro('distanceTo', function (Point $other): float {
+    /** @var Point $this */
+    $earthRadius = 6371000; // meters
+    
+    $latFrom = deg2rad($this->latitude);
+    $lonFrom = deg2rad($this->longitude);
+    $latTo = deg2rad($other->latitude);
+    $lonTo = deg2rad($other->longitude);
+    
+    $latDelta = $latTo - $latFrom;
+    $lonDelta = $lonTo - $lonFrom;
+    
+    $a = sin($latDelta / 2) ** 2 +
+         cos($latFrom) * cos($latTo) *
+         sin($lonDelta / 2) ** 2;
+    
+    $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+    
+    return $earthRadius * $c;
+});
+
+// Usage
+$london = new Point(51.5074, -0.1278);
+$paris = new Point(48.8566, 2.3522);
+
+echo $london->distanceTo($paris); // ~343670 meters
+```
+
+#### Format as Human-Readable String
+
+```php
+Geometry::macro('toReadableString', function (): string {
+    /** @var Point $this */
+    if ($this instanceof Point) {
+        return sprintf(
+            '%.4f°%s, %.4f°%s',
+            abs($this->latitude),
+            $this->latitude >= 0 ? 'N' : 'S',
+            abs($this->longitude),
+            $this->longitude >= 0 ? 'E' : 'W'
+        );
+    }
+    
+    return $this->toWkt();
+});
+
+// Usage
+$point = new Point(51.5074, -0.1278);
+echo $point->toReadableString(); // 51.5074°N, 0.1278°W
+```
+
+#### Is Within Bounds
+
+```php
+Geometry::macro('isWithinBounds', function (
+    float $minLat,
+    float $minLng,
+    float $maxLat,
+    float $maxLng
+): bool {
+    /** @var Point $this */
+    return $this->latitude >= $minLat &&
+           $this->latitude <= $maxLat &&
+           $this->longitude >= $minLng &&
+           $this->longitude <= $maxLng;
+});
+
+// Usage
+$point = new Point(51.5074, -0.1278);
+$isInUK = $point->isWithinBounds(49.9, -7.6, 60.8, 1.8);
+```
+
+## Extending with Custom Classes
+
+For more complex extensions, you can create custom geometry classes that extend the base geometry classes.
+
+### Step 1: Create a Custom Geometry Class
+
+Create a custom class that extends a base geometry class:
+
+```php
+namespace App\ValueObjects;
+
+use MatanYadaev\EloquentSpatial\Objects\Point;
+
+class ExtendedPoint extends Point
+{
+    public function toCustomArray(): array
+    {
+        return [
+            'coordinates' => [
+                'latitude' => $this->latitude,
+                'longitude' => $this->longitude
+            ],
+            'srid' => $this->srid,
+        ];
+    }
+    
+    public function distanceTo(Point $other): float
+    {
+        $earthRadius = 6371000; // meters
+        
+        $latFrom = deg2rad($this->latitude);
+        $lonFrom = deg2rad($this->longitude);
+        $latTo = deg2rad($other->latitude);
+        $lonTo = deg2rad($other->longitude);
+        
+        $latDelta = $latTo - $latFrom;
+        $lonDelta = $lonTo - $lonFrom;
+        
+        $a = sin($latDelta / 2) ** 2 +
+             cos($latFrom) * cos($latTo) *
+             sin($lonDelta / 2) ** 2;
+        
+        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+        
+        return $earthRadius * $c;
+    }
+    
+    public function toReadableString(): string
+    {
+        return sprintf(
+            '%.4f°%s, %.4f°%s',
+            abs($this->latitude),
+            $this->latitude >= 0 ? 'N' : 'S',
+            abs($this->longitude),
+            $this->longitude >= 0 ? 'E' : 'W'
+        );
+    }
+}
+```
+
+### Step 2: Register the Custom Class
+
+Update the geometry class mapping in a service provider:
+
+```php
+use App\ValueObjects\ExtendedPoint;
+use Illuminate\Support\ServiceProvider;
+use MatanYadaev\EloquentSpatial\EloquentSpatial;
+
+class AppServiceProvider extends ServiceProvider
+{
+    public function boot(): void
+    {
+        EloquentSpatial::usePoint(ExtendedPoint::class);
+    }
+}
+```
+
+### Step 3: Update Your Model
+
+Update your model to use the custom geometry class in the `$casts` property:
+
+```php
+namespace App\Models;
+
+use App\ValueObjects\ExtendedPoint;
+use Illuminate\Database\Eloquent\Model;
+use MatanYadaev\EloquentSpatial\Traits\HasSpatial;
+
+class Place extends Model
+{
+    use HasSpatial;
+    
+    protected $fillable = [
+        'name',
+        'coordinates',
+    ];
+    
+    protected $casts = [
+        'coordinates' => ExtendedPoint::class,
+    ];
+    
+    // Or using the casts() method:
+    protected function casts(): array
+    {
+        return [
+            'coordinates' => ExtendedPoint::class,
+        ];
+    }
+}
+```
+
+### Step 4: Use the Custom Class
+
+```php
+use App\Models\Place;
+use App\ValueObjects\ExtendedPoint;
+
+$place = Place::create([
+    'name' => 'London Eye',
+    'coordinates' => new ExtendedPoint(51.5032973, -0.1217424),
+]);
+
+// Use custom methods
+echo $place->coordinates->toCustomArray();
+// Output:
+// [
+//   'coordinates' => [
+//     'latitude' => 51.5032973,
+//     'longitude' => -0.1217424
+//   ],
+//   'srid' => 0
+// ]
+
+echo $place->coordinates->toReadableString();
+// Output: 51.5033°N, 0.1217°W
+
+$bigBen = new ExtendedPoint(51.5007, -0.1246);
+echo $place->coordinates->distanceTo($bigBen);
+// Output: ~328 meters
+```
+
+## Available Custom Class Registration Methods
+
+You can register custom classes for all geometry types:
+
+```php
+use MatanYadaev\EloquentSpatial\EloquentSpatial;
+
+EloquentSpatial::usePoint(CustomPoint::class);
+EloquentSpatial::useMultiPoint(CustomMultiPoint::class);
+EloquentSpatial::useLineString(CustomLineString::class);
+EloquentSpatial::useMultiLineString(CustomMultiLineString::class);
+EloquentSpatial::usePolygon(CustomPolygon::class);
+EloquentSpatial::useMultiPolygon(CustomMultiPolygon::class);
+EloquentSpatial::useGeometryCollection(CustomGeometryCollection::class);
+```
+
+## Advanced Custom Class Example
+
+Here's a more comprehensive example with validation and helper methods:
+
+```php
+namespace App\ValueObjects;
+
+use InvalidArgumentException;
+use MatanYadaev\EloquentSpatial\Objects\Point;
+
+class LocationPoint extends Point
+{
+    public function __construct(float $latitude, float $longitude, int $srid = null)
+    {
+        $this->validateCoordinates($latitude, $longitude);
+        parent::__construct($latitude, $longitude, $srid);
+    }
+    
+    private function validateCoordinates(float $latitude, float $longitude): void
+    {
+        if ($latitude < -90 || $latitude > 90) {
+            throw new InvalidArgumentException(
+                "Latitude must be between -90 and 90, got {$latitude}"
+            );
+        }
+        
+        if ($longitude < -180 || $longitude > 180) {
+            throw new InvalidArgumentException(
+                "Longitude must be between -180 and 180, got {$longitude}"
+            );
+        }
+    }
+    
+    public function toGoogleMapsFormat(): array
+    {
+        return [
+            'lat' => $this->latitude,
+            'lng' => $this->longitude,
+        ];
+    }
+    
+    public function toLeafletFormat(): array
+    {
+        return [
+            $this->latitude,
+            $this->longitude,
+        ];
+    }
+    
+    public function getGoogleMapsUrl(): string
+    {
+        return sprintf(
+            'https://www.google.com/maps/search/?api=1&query=%f,%f',
+            $this->latitude,
+            $this->longitude
+        );
+    }
+    
+    public function isNorthernHemisphere(): bool
+    {
+        return $this->latitude > 0;
+    }
+    
+    public function isWesternHemisphere(): bool
+    {
+        return $this->longitude < 0;
+    }
+}
+```
+
+## Setting Default SRID
+
+You can set a default SRID for your entire application:
+
+```php
+use MatanYadaev\EloquentSpatial\EloquentSpatial;
+use MatanYadaev\EloquentSpatial\Enums\Srid;
+use Illuminate\Support\ServiceProvider;
+
+class AppServiceProvider extends ServiceProvider
+{
+    public function boot(): void
+    {
+        // Set the default SRID to WGS84 (EPSG:4326)
+        EloquentSpatial::setDefaultSrid(Srid::WGS84);
+    }
+}
+```
+
+After setting this, all geometry objects created without an explicit SRID will use WGS84:
+
+```php
+$point = new Point(51.5074, -0.1278);
+echo $point->srid; // 4326 (instead of 0)
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="When to Use Macros vs Custom Classes">
+    - **Use Macros** when you need to add simple utility methods that work across multiple geometry types
+    - **Use Custom Classes** when you need complex functionality, validation, or want to override existing behavior
+  </Accordion>
+  
+  <Accordion title="Avoiding Breaking Changes">
+    - Don't override existing methods in custom classes unless absolutely necessary
+    - Use descriptive names for macros to avoid conflicts with future package updates
+    - Test thoroughly when extending functionality
+  </Accordion>
+  
+  <Accordion title="Performance Considerations">
+    - Macros have minimal performance overhead
+    - Custom classes can add validation or computation costs
+    - Consider caching computed values if methods are called frequently
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Migrations" icon="database" href="/guides/migrations">
+    Learn how to create migrations with spatial columns
+  </Card>
+  <Card title="Querying Spatial Data" icon="magnifying-glass" href="/guides/querying-spatial-data">
+    Learn how to query spatial data using scopes
+  </Card>
+</CardGroup>

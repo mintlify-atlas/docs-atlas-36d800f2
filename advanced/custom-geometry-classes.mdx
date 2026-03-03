@@ -1,0 +1,157 @@
+---
+title: Custom Geometry Classes
+description: Learn how to create and use custom geometry classes to extend the functionality of Laravel Eloquent Spatial
+---
+
+You can extend the built-in geometry classes by creating custom geometry classes that add additional functionality. This allows you to add domain-specific methods or override existing behavior to suit your application's needs.
+
+## Creating a Custom Geometry Class
+
+Custom geometry classes extend the base geometry classes provided by the package. Here's how to create and use them:
+
+### Step 1: Create the Custom Class
+
+Create a custom geometry class that extends the base geometry class you want to customize:
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\Point;
+
+class ExtendedPoint extends Point
+{
+    public function toCustomArray(): array
+    {
+        return [
+            'coordinates' => [
+                'latitude' => $this->latitude,
+                'longitude' => $this->longitude
+            ]
+        ];
+    }
+}
+```
+
+<Note>
+You can add new methods to your custom classes, but be careful when overriding existing methods as it may lead to unexpected behavior.
+</Note>
+
+### Step 2: Register the Custom Class
+
+Register your custom geometry class in a service provider's `boot` method using the `EloquentSpatial` class:
+
+```php
+use App\ValueObjects\ExtendedPoint;
+use Illuminate\Support\ServiceProvider;
+use MatanYadaev\EloquentSpatial\EloquentSpatial;
+
+class AppServiceProvider extends ServiceProvider
+{
+    public function boot(): void
+    {
+        EloquentSpatial::usePoint(ExtendedPoint::class);
+    }
+}
+```
+
+### Step 3: Use the Custom Class in Your Model
+
+Update your model to use the custom geometry class in the `$casts` property or `casts()` method:
+
+```php
+use App\ValueObjects\ExtendedPoint;
+use Illuminate\Database\Eloquent\Model;
+use MatanYadaev\EloquentSpatial\Traits\HasSpatial;
+
+class Place extends Model
+{
+    use HasSpatial;
+    
+    protected $casts = [
+        'coordinates' => ExtendedPoint::class,
+    ];
+    
+    // Or use the casts() method:
+
+    protected function casts(): array
+    {
+        return [
+            'coordinates' => ExtendedPoint::class,
+        ];
+    }
+}
+```
+
+### Step 4: Use Your Custom Class
+
+Now you can use your custom geometry class throughout your application:
+
+```php
+use App\Models\Place;
+use App\ValueObjects\ExtendedPoint;
+
+$place = Place::create([
+    'name' => 'London Eye',
+    'coordinates' => new ExtendedPoint(51.5032973, -0.1217424),
+]);
+
+echo $place->coordinates->toCustomArray();
+// Output: ['coordinates' => ['latitude' => 51.5032973, 'longitude' => -0.1217424]]
+```
+
+## Available Registration Methods
+
+The `EloquentSpatial` class provides registration methods for all geometry types:
+
+```php
+EloquentSpatial::usePoint(CustomPoint::class);
+EloquentSpatial::useLineString(CustomLineString::class);
+EloquentSpatial::usePolygon(CustomPolygon::class);
+EloquentSpatial::useMultiPoint(CustomMultiPoint::class);
+EloquentSpatial::useMultiLineString(CustomMultiLineString::class);
+EloquentSpatial::useMultiPolygon(CustomMultiPolygon::class);
+EloquentSpatial::useGeometryCollection(CustomGeometryCollection::class);
+```
+
+## Use Cases
+
+Custom geometry classes are useful for:
+
+- **Custom Serialization**: Create custom array or JSON representations
+- **Domain Logic**: Add business-specific methods (e.g., `isWithinDeliveryZone()`)
+- **Formatting**: Add methods for specific coordinate formats or projections
+- **Validation**: Add custom validation logic for your specific use case
+- **Integration**: Add methods to integrate with third-party mapping services
+
+## Example: Distance Calculation Method
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\Point;
+
+class LocationPoint extends Point
+{
+    public function distanceToInKilometers(Point $other): float
+    {
+        // Haversine formula for great-circle distance
+        $earthRadius = 6371; // km
+        
+        $latFrom = deg2rad($this->latitude);
+        $lonFrom = deg2rad($this->longitude);
+        $latTo = deg2rad($other->latitude);
+        $lonTo = deg2rad($other->longitude);
+        
+        $latDelta = $latTo - $latFrom;
+        $lonDelta = $lonTo - $lonFrom;
+        
+        $a = sin($latDelta / 2) ** 2 +
+             cos($latFrom) * cos($latTo) *
+             sin($lonDelta / 2) ** 2;
+        
+        $c = 2 * asin(sqrt($a));
+        
+        return $earthRadius * $c;
+    }
+}
+```
+
+<Warning>
+Be cautious when overriding existing methods. The package relies on certain methods for serialization and database interactions. Overriding these methods incorrectly can cause unexpected behavior.
+</Warning>

@@ -1,0 +1,336 @@
+---
+title: Querying Spatial Data
+description: Learn how to use spatial query scopes to find and filter geographic data
+---
+
+## Overview
+
+Laravel Eloquent Spatial provides powerful query scopes for working with spatial data. These scopes leverage MySQL's and PostGIS's spatial functions to perform geographic queries.
+
+## Distance Queries
+
+### withDistance
+
+Retrieves the distance between two geometry objects using [ST_Distance](https://dev.mysql.com/doc/refman/8.0/en/spatial-relation-functions-object-shapes.html#function_st-distance).
+
+**Parameters:**
+- `$column` - Column name or Geometry object
+- `$geometryOrColumn` - Geometry object or column to compare against
+- `$alias` - Alias for the distance column (default: `'distance'`)
+
+```php
+use App\Models\Place;
+use MatanYadaev\EloquentSpatial\Objects\Point;
+
+Place::create(['location' => new Point(0, 0, 4326)]);
+
+$placeWithDistance = Place::query()
+    ->withDistance('location', new Point(1, 1, 4326))
+    ->first();
+
+echo $placeWithDistance->distance; // 156897.79947260793
+
+// Using custom alias
+$placeWithDistance = Place::query()
+    ->withDistance('location', new Point(1, 1, 4326), 'distance_in_meters')
+    ->first();
+
+echo $placeWithDistance->distance_in_meters; // 156897.79947260793
+```
+
+### whereDistance
+
+Filters records by distance using [ST_Distance](https://dev.mysql.com/doc/refman/8.0/en/spatial-relation-functions-object-shapes.html#function_st-distance).
+
+**Parameters:**
+- `$column` - Column name or Geometry object
+- `$geometryOrColumn` - Geometry object or column to compare against
+- `$operator` - Comparison operator (`<`, `<=`, `=`, `>=`, `>`)
+- `$value` - Distance value
+
+```php
+Place::create(['location' => new Point(0, 0, 4326)]);
+Place::create(['location' => new Point(50, 50, 4326)]);
+
+$placesWithinDistance = Place::query()
+    ->whereDistance('location', new Point(1, 1, 4326), '<', 160000)
+    ->count();
+
+echo $placesWithinDistance; // 1
+```
+
+### orderByDistance
+
+Orders records by distance using [ST_Distance](https://dev.mysql.com/doc/refman/8.0/en/spatial-relation-functions-object-shapes.html#function_st-distance).
+
+**Parameters:**
+- `$column` - Column name or Geometry object
+- `$geometryOrColumn` - Geometry object or column to compare against
+- `$direction` - Sort direction (default: `'asc'`)
+
+```php
+Place::create([
+    'name' => 'first',
+    'location' => new Point(0, 0, 4326),
+]);
+Place::create([
+    'name' => 'second',
+    'location' => new Point(50, 50, 4326),
+]);
+
+$places = Place::query()
+    ->orderByDistance('location', new Point(1, 1, 4326), 'desc')
+    ->get();
+
+echo $places[0]->name; // second
+echo $places[1]->name; // first
+```
+
+## Spherical Distance Queries
+
+For more accurate distance calculations on Earth's surface, use the spherical distance functions.
+
+### withDistanceSphere
+
+Retrieves spherical distance using [ST_Distance_Sphere](https://dev.mysql.com/doc/refman/8.0/en/spatial-convenience-functions.html#function_st-distance-sphere).
+
+```php
+Place::create(['location' => new Point(0, 0, 4326)]);
+
+$placeWithDistance = Place::query()
+    ->withDistanceSphere('location', new Point(1, 1, 4326))
+    ->first();
+
+echo $placeWithDistance->distance; // 157249.59776850493
+```
+
+### whereDistanceSphere
+
+Filters records by spherical distance.
+
+```php
+Place::create(['location' => new Point(0, 0, 4326)]);
+Place::create(['location' => new Point(50, 50, 4326)]);
+
+$placesWithinDistance = Place::query()
+    ->whereDistanceSphere('location', new Point(1, 1, 4326), '<', 160000)
+    ->count();
+
+echo $placesWithinDistance; // 1
+```
+
+### orderByDistanceSphere
+
+Orders records by spherical distance.
+
+```php
+$places = Place::query()
+    ->orderByDistanceSphere('location', new Point(1, 1, 4326), 'desc')
+    ->get();
+```
+
+## Spatial Relationship Queries
+
+### whereWithin
+
+Filters records where the geometry is within another geometry using [ST_Within](https://dev.mysql.com/doc/refman/8.0/en/spatial-relation-functions-object-shapes.html#function_st-within).
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\Polygon;
+
+Place::create(['location' => new Point(0, 0, 4326)]);
+
+$exists = Place::query()
+    ->whereWithin('location', Polygon::fromJson('{"type":"Polygon","coordinates":[[[-1,-1],[1,-1],[1,1],[-1,1],[-1,-1]]]}'))
+    ->exists();
+
+echo $exists; // true
+```
+
+### whereNotWithin
+
+Filters records where the geometry is not within another geometry.
+
+```php
+$exists = Place::query()
+    ->whereNotWithin('location', Polygon::fromJson('{"type":"Polygon","coordinates":[[[-1,-1],[1,-1],[1,1],[-1,1],[-1,-1]]]}'))
+    ->exists();
+
+echo $exists; // false
+```
+
+### whereContains
+
+Filters records where the geometry contains another geometry using [ST_Contains](https://dev.mysql.com/doc/refman/8.0/en/spatial-relation-functions-object-shapes.html#function_st-contains).
+
+```php
+Place::create([
+    'area' => Polygon::fromJson('{"type":"Polygon","coordinates":[[[-1,-1],[1,-1],[1,1],[-1,1],[-1,-1]]]}')
+]);
+
+$exists = Place::query()
+    ->whereContains('area', new Point(0, 0, 4326))
+    ->exists();
+
+echo $exists; // true
+```
+
+### whereNotContains
+
+Filters records where the geometry does not contain another geometry.
+
+```php
+$exists = Place::query()
+    ->whereNotContains('area', new Point(0, 0, 4326))
+    ->exists();
+
+echo $exists; // false
+```
+
+### whereTouches
+
+Filters records where geometries touch using [ST_Touches](https://dev.mysql.com/doc/refman/8.0/en/spatial-relation-functions-object-shapes.html#function_st-touches).
+
+```php
+Place::create(['location' => new Point(0, 0, 4326)]);
+
+$exists = Place::query()
+    ->whereTouches('location', Polygon::fromJson('{"type":"Polygon","coordinates":[[[-1,-1],[0,-1],[0,0],[-1,0],[-1,-1]]]}'))
+    ->exists();
+
+echo $exists; // true
+```
+
+### whereIntersects
+
+Filters records where geometries intersect using [ST_Intersects](https://dev.mysql.com/doc/refman/8.0/en/spatial-relation-functions-object-shapes.html#function_st-intersects).
+
+```php
+Place::create(['location' => new Point(0, 0, 4326)]);
+
+$exists = Place::query()
+    ->whereIntersects('location', Polygon::fromJson('{"type":"Polygon","coordinates":[[[-1,-1],[1,-1],[1,1],[-1,1],[-1,-1]]]}'))
+    ->exists();
+
+echo $exists; // true
+```
+
+### whereCrosses
+
+Filters records where geometries cross using [ST_Crosses](https://dev.mysql.com/doc/refman/8.0/en/spatial-relation-functions-object-shapes.html#function_st-crosses).
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\LineString;
+
+Place::create([
+    'line_string' => LineString::fromJson('{"type":"LineString","coordinates":[[0,0],[2,0]]}')
+]);
+
+$exists = Place::query()
+    ->whereCrosses('line_string', Polygon::fromJson('{"type":"Polygon","coordinates":[[[-1,-1],[1,-1],[1,1],[-1,1],[-1,-1]]]}'))
+    ->exists();
+
+echo $exists; // true
+```
+
+### whereDisjoint
+
+Filters records where geometries are disjoint using [ST_Disjoint](https://dev.mysql.com/doc/refman/8.0/en/spatial-relation-functions-object-shapes.html#function_st-disjoint).
+
+```php
+Place::create(['location' => new Point(0, 0, 4326)]);
+
+$exists = Place::query()
+    ->whereDisjoint('location', Polygon::fromJson('{"type":"Polygon","coordinates":[[[-1,-1],[-0.5,-1],[-0.5,-0.5],[-1,-0.5],[-1,-1]]]}'))
+    ->exists();
+
+echo $exists; // true
+```
+
+### whereEquals
+
+Filters records where geometries are equal using [ST_Equals](https://dev.mysql.com/doc/refman/8.0/en/spatial-relation-functions-object-shapes.html#function_st-equals).
+
+```php
+Place::create(['location' => new Point(0, 0, 4326)]);
+
+$exists = Place::query()
+    ->whereEquals('location', new Point(0, 0, 4326))
+    ->exists();
+
+echo $exists; // true
+```
+
+## SRID Queries
+
+### whereSrid
+
+Filters records by SRID using [ST_SRID](https://dev.mysql.com/doc/refman/8.0/en/gis-general-property-functions.html#function_st-srid).
+
+```php
+Place::create(['location' => new Point(0, 0, 4326)]);
+
+$exists = Place::query()
+    ->whereSrid('location', '=', 4326)
+    ->exists();
+
+echo $exists; // true
+```
+
+## Computed Geometry Queries
+
+### withCentroid
+
+Retrieves the centroid of a geometry using [ST_Centroid](https://dev.mysql.com/doc/refman/8.0/en/gis-polygon-property-functions.html#function_st-centroid).
+
+<Note>
+You must use `withCasts()` to cast the centroid column to a Point, otherwise it will be returned as a binary string.
+</Note>
+
+```php
+$polygon = Polygon::fromJson('{"type":"Polygon","coordinates":[[[-1,-1],[1,-1],[1,1],[-1,1],[-1,-1]]]}');
+Place::create(['polygon' => $polygon]);
+
+$placeWithCentroid = Place::query()
+    ->withCentroid('polygon')
+    ->withCasts(['centroid' => Point::class])
+    ->first();
+
+echo $placeWithCentroid->centroid; // POINT(0 0)
+
+// Using custom alias
+$placeWithCentroid = Place::query()
+    ->withCentroid('polygon', 'centroid_alias')
+    ->withCasts(['centroid_alias' => Point::class])
+    ->first();
+
+echo $placeWithCentroid->centroid_alias; // POINT(0 0)
+```
+
+## Combining Query Scopes
+
+You can chain multiple spatial scopes together:
+
+```php
+$nearbyPlaces = Place::query()
+    ->whereDistance('location', new Point(51.5074, -0.1278), '<', 5000)
+    ->orderByDistance('location', new Point(51.5074, -0.1278))
+    ->withDistance('location', new Point(51.5074, -0.1278))
+    ->limit(10)
+    ->get();
+
+foreach ($nearbyPlaces as $place) {
+    echo "{$place->name}: {$place->distance}m away\n";
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Working with Formats" icon="file-code" href="/guides/working-with-formats">
+    Convert between WKT, WKB, and GeoJSON formats
+  </Card>
+  <Card title="Extending" icon="puzzle-piece" href="/guides/extending">
+    Extend with macros and custom classes
+  </Card>
+</CardGroup>

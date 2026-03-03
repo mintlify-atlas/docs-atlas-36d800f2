@@ -1,0 +1,561 @@
+---
+title: Geometry Classes
+description: Complete reference for all geometry classes in Laravel Eloquent Spatial
+---
+
+## Overview
+
+Laravel Eloquent Spatial provides geometry classes that represent spatial data types. All geometry classes extend the base `Geometry` class and can be created using constructors or static factory methods.
+
+## Available Geometry Classes
+
+### Point
+
+Represents a single point in space with latitude and longitude coordinates.
+
+**Constructor:**
+
+```php
+new Point(float $latitude, float $longitude, int|Srid|null $srid = null)
+```
+
+<ParamField path="latitude" type="float" required>
+  The latitude coordinate
+</ParamField>
+
+<ParamField path="longitude" type="float" required>
+  The longitude coordinate
+</ParamField>
+
+<ParamField path="srid" type="int|Srid|null">
+  Spatial Reference System Identifier (defaults to WGS84/4326)
+</ParamField>
+
+**Example:**
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\Point;
+use MatanYadaev\EloquentSpatial\Enums\Srid;
+
+$point = new Point(lat: 28.123, lng: -81.456);
+$pointWithSrid = new Point(lat: 28.123, lng: -81.456, srid: Srid::WGS84);
+```
+
+**MySQL Reference:** [MySQL Point](https://dev.mysql.com/doc/refman/8.0/en/gis-class-point.html)
+
+---
+
+### MultiPoint
+
+Represents a collection of Point objects.
+
+**Constructor:**
+
+```php
+new MultiPoint(Point[]|Collection<Point> $geometries, int|Srid|null $srid = null)
+```
+
+<ParamField path="geometries" type="Point[]|Collection<Point>" required>
+  Array or Collection of Point objects
+</ParamField>
+
+<ParamField path="srid" type="int|Srid|null">
+  Spatial Reference System Identifier (defaults to WGS84/4326)
+</ParamField>
+
+**Example:**
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\MultiPoint;
+use MatanYadaev\EloquentSpatial\Objects\Point;
+
+$multiPoint = new MultiPoint([
+    new Point(0, 0),
+    new Point(1, 1),
+    new Point(2, 2),
+]);
+```
+
+**MySQL Reference:** [MySQL MultiPoint](https://dev.mysql.com/doc/refman/8.0/en/gis-class-multipoint.html)
+
+---
+
+### LineString
+
+Represents a curve with linear interpolation between points. Requires at least 2 points.
+
+**Constructor:**
+
+```php
+new LineString(Point[]|Collection<Point> $geometries, int|Srid|null $srid = null)
+```
+
+<ParamField path="geometries" type="Point[]|Collection<Point>" required>
+  Array or Collection of Point objects (minimum 2 points required)
+</ParamField>
+
+<ParamField path="srid" type="int|Srid|null">
+  Spatial Reference System Identifier (defaults to WGS84/4326)
+</ParamField>
+
+**Example:**
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\LineString;
+use MatanYadaev\EloquentSpatial\Objects\Point;
+
+$lineString = new LineString([
+    new Point(0, 0),
+    new Point(1, 1),
+    new Point(2, 2),
+]);
+```
+
+**MySQL Reference:** [MySQL LineString](https://dev.mysql.com/doc/refman/8.0/en/gis-class-linestring.html)
+
+---
+
+### MultiLineString
+
+Represents a collection of LineString objects.
+
+**Constructor:**
+
+```php
+new MultiLineString(LineString[]|Collection<LineString> $geometries, int|Srid|null $srid = null)
+```
+
+<ParamField path="geometries" type="LineString[]|Collection<LineString>" required>
+  Array or Collection of LineString objects
+</ParamField>
+
+<ParamField path="srid" type="int|Srid|null">
+  Spatial Reference System Identifier (defaults to WGS84/4326)
+</ParamField>
+
+**Example:**
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\MultiLineString;
+use MatanYadaev\EloquentSpatial\Objects\LineString;
+use MatanYadaev\EloquentSpatial\Objects\Point;
+
+$multiLineString = new MultiLineString([
+    new LineString([
+        new Point(0, 0),
+        new Point(1, 1),
+    ]),
+    new LineString([
+        new Point(2, 2),
+        new Point(3, 3),
+    ]),
+]);
+```
+
+**MySQL Reference:** [MySQL MultiLineString](https://dev.mysql.com/doc/refman/8.0/en/gis-class-multilinestring.html)
+
+---
+
+### Polygon
+
+Represents a polygon, which is a planar surface defined by exterior and optional interior boundaries.
+
+**Constructor:**
+
+```php
+new Polygon(LineString[]|Collection<LineString> $geometries, int|Srid|null $srid = null)
+```
+
+<ParamField path="geometries" type="LineString[]|Collection<LineString>" required>
+  Array or Collection of LineString objects. The first LineString represents the exterior boundary, and any additional LineStrings represent interior boundaries (holes).
+</ParamField>
+
+<ParamField path="srid" type="int|Srid|null">
+  Spatial Reference System Identifier (defaults to WGS84/4326)
+</ParamField>
+
+**Example:**
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\Polygon;
+use MatanYadaev\EloquentSpatial\Objects\LineString;
+use MatanYadaev\EloquentSpatial\Objects\Point;
+
+$polygon = new Polygon([
+    new LineString([
+        new Point(0, 180),
+        new Point(1, 179),
+        new Point(2, 178),
+        new Point(3, 177),
+        new Point(0, 180),
+    ]),
+]);
+```
+
+**MySQL Reference:** [MySQL Polygon](https://dev.mysql.com/doc/refman/8.0/en/gis-class-polygon.html)
+
+---
+
+### MultiPolygon
+
+Represents a collection of Polygon objects.
+
+**Constructor:**
+
+```php
+new MultiPolygon(Polygon[]|Collection<Polygon> $geometries, int|Srid|null $srid = null)
+```
+
+<ParamField path="geometries" type="Polygon[]|Collection<Polygon>" required>
+  Array or Collection of Polygon objects
+</ParamField>
+
+<ParamField path="srid" type="int|Srid|null">
+  Spatial Reference System Identifier (defaults to WGS84/4326)
+</ParamField>
+
+**Example:**
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\MultiPolygon;
+use MatanYadaev\EloquentSpatial\Objects\Polygon;
+use MatanYadaev\EloquentSpatial\Objects\LineString;
+use MatanYadaev\EloquentSpatial\Objects\Point;
+
+$multiPolygon = new MultiPolygon([
+    new Polygon([
+        new LineString([
+            new Point(0, 0),
+            new Point(1, 0),
+            new Point(1, 1),
+            new Point(0, 1),
+            new Point(0, 0),
+        ]),
+    ]),
+    new Polygon([
+        new LineString([
+            new Point(2, 2),
+            new Point(3, 2),
+            new Point(3, 3),
+            new Point(2, 3),
+            new Point(2, 2),
+        ]),
+    ]),
+]);
+```
+
+**MySQL Reference:** [MySQL MultiPolygon](https://dev.mysql.com/doc/refman/8.0/en/gis-class-multipolygon.html)
+
+---
+
+### GeometryCollection
+
+Represents a heterogeneous collection of geometry objects.
+
+**Constructor:**
+
+```php
+new GeometryCollection(Geometry[]|Collection<Geometry> $geometries, int|Srid|null $srid = null)
+```
+
+<ParamField path="geometries" type="Geometry[]|Collection<Geometry>" required>
+  Array or Collection of any Geometry objects (can mix different types)
+</ParamField>
+
+<ParamField path="srid" type="int|Srid|null">
+  Spatial Reference System Identifier (defaults to WGS84/4326)
+</ParamField>
+
+**Example:**
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\GeometryCollection;
+use MatanYadaev\EloquentSpatial\Objects\Polygon;
+use MatanYadaev\EloquentSpatial\Objects\LineString;
+use MatanYadaev\EloquentSpatial\Objects\Point;
+
+$geometryCollection = new GeometryCollection([
+    new Polygon([
+        new LineString([
+            new Point(0, 180),
+            new Point(1, 179),
+            new Point(2, 178),
+            new Point(3, 177),
+            new Point(0, 180),
+        ]),
+    ]),
+    new Point(0, 180),
+]);
+
+// Access geometries using getGeometries()
+echo $geometryCollection->getGeometries()[1]->latitude; // 0
+
+// Or use ArrayAccess
+echo $geometryCollection[1]->latitude; // 0
+```
+
+**MySQL Reference:** [MySQL GeometryCollection](https://dev.mysql.com/doc/refman/8.0/en/gis-class-geometrycollection.html)
+
+---
+
+## Static Factory Methods
+
+All geometry classes can be created using these static factory methods:
+
+### fromArray()
+
+Creates a geometry object from a GeoJSON array.
+
+```php
+static fromArray(array $geometry, int|Srid|null $srid = null): static
+```
+
+<ParamField path="geometry" type="array" required>
+  A GeoJSON-formatted associative array
+</ParamField>
+
+<ParamField path="srid" type="int|Srid|null">
+  Spatial Reference System Identifier (defaults to WGS84/4326)
+</ParamField>
+
+**Example:**
+
+```php
+$point = Point::fromArray([
+    'type' => 'Point',
+    'coordinates' => [-81.456, 28.123],
+]);
+```
+
+---
+
+### fromJson()
+
+Creates a geometry object from a GeoJSON string.
+
+```php
+static fromJson(string $geoJson, int|Srid|null $srid = null): static
+```
+
+<ParamField path="geoJson" type="string" required>
+  A GeoJSON-formatted string
+</ParamField>
+
+<ParamField path="srid" type="int|Srid|null">
+  Spatial Reference System Identifier (defaults to WGS84/4326)
+</ParamField>
+
+**Example:**
+
+```php
+$polygon = Polygon::fromJson('{"type":"Polygon","coordinates":[[[-1,-1],[1,-1],[1,1],[-1,1],[-1,-1]]]}');
+```
+
+---
+
+### fromWkt()
+
+Creates a geometry object from Well-Known Text (WKT) representation.
+
+```php
+static fromWkt(string $wkt, int|Srid|null $srid = null): static
+```
+
+<ParamField path="wkt" type="string" required>
+  A Well-Known Text string
+</ParamField>
+
+<ParamField path="srid" type="int|Srid|null">
+  Spatial Reference System Identifier (defaults to WGS84/4326)
+</ParamField>
+
+**Example:**
+
+```php
+$point = Point::fromWkt('POINT(-81.456 28.123)');
+$lineString = LineString::fromWkt('LINESTRING(0 0, 1 1, 2 2)');
+```
+
+---
+
+### fromWkb()
+
+Creates a geometry object from Well-Known Binary (WKB) representation.
+
+```php
+static fromWkb(string $wkb): static
+```
+
+<ParamField path="wkb" type="string" required>
+  A Well-Known Binary string (binary or hex-encoded)
+</ParamField>
+
+**Example:**
+
+```php
+$point = Point::fromWkb($wkbBinary);
+```
+
+---
+
+## Instance Methods
+
+All geometry objects have the following methods:
+
+### toArray()
+
+Serializes the geometry object into a GeoJSON associative array.
+
+```php
+toArray(): array
+```
+
+**Example:**
+
+```php
+$point = new Point(28.123, -81.456);
+$array = $point->toArray();
+// ['type' => 'Point', 'coordinates' => [-81.456, 28.123]]
+```
+
+---
+
+### toJson()
+
+Serializes the geometry object into a GeoJSON string.
+
+```php
+toJson(int $options = 0): string
+```
+
+**Example:**
+
+```php
+$point = new Point(28.123, -81.456);
+$json = $point->toJson();
+// '{"type":"Point","coordinates":[-81.456,28.123]}'
+```
+
+---
+
+### toFeatureCollectionJson()
+
+Serializes the geometry object into a GeoJSON FeatureCollection string.
+
+```php
+toFeatureCollectionJson(): string
+```
+
+**Example:**
+
+```php
+$point = new Point(28.123, -81.456);
+$featureCollection = $point->toFeatureCollectionJson();
+```
+
+---
+
+### toWkt()
+
+Serializes the geometry object into Well-Known Text (WKT) format.
+
+```php
+toWkt(): string
+```
+
+**Example:**
+
+```php
+$point = new Point(28.123, -81.456);
+echo $point->toWkt(); // POINT(-81.456 28.123)
+```
+
+---
+
+### toWkb()
+
+Serializes the geometry object into Well-Known Binary (WKB) format.
+
+```php
+toWkb(): string
+```
+
+**Example:**
+
+```php
+$point = new Point(28.123, -81.456);
+$wkb = $point->toWkb();
+```
+
+---
+
+### getCoordinates()
+
+Returns the coordinates of the geometry object.
+
+```php
+getCoordinates(): array
+```
+
+**Example:**
+
+```php
+$point = new Point(28.123, -81.456);
+$coordinates = $point->getCoordinates(); // [-81.456, 28.123]
+```
+
+---
+
+### toSqlExpression()
+
+Serializes the geometry object into an SQL expression for database queries.
+
+```php
+toSqlExpression(ConnectionInterface $connection): ExpressionContract
+```
+
+<ParamField path="connection" type="ConnectionInterface" required>
+  Database connection instance
+</ParamField>
+
+**Example:**
+
+```php
+$point = new Point(28.123, -81.456);
+$expression = $point->toSqlExpression(DB::connection());
+```
+
+---
+
+## GeometryCollection Methods
+
+`GeometryCollection` and its subclasses have an additional method:
+
+### getGeometries()
+
+Returns a Collection of geometry objects. Can also be accessed using ArrayAccess.
+
+```php
+getGeometries(): Collection<int, Geometry>
+```
+
+**Example:**
+
+```php
+$geometryCollection = new GeometryCollection([
+    new Polygon([
+        new LineString([
+            new Point(0, 180),
+            new Point(1, 179),
+            new Point(2, 178),
+            new Point(3, 177),
+            new Point(0, 180),
+        ]),
+    ]),
+    new Point(0, 180),
+]);
+
+echo $geometryCollection->getGeometries()[1]->latitude; // 0
+// or access as an array:
+echo $geometryCollection[1]->latitude; // 0
+```

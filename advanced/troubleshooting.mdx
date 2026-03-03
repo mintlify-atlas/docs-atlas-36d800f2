@@ -1,0 +1,358 @@
+---
+title: Troubleshooting
+description: Common issues and solutions when working with Laravel Eloquent Spatial
+---
+
+This guide covers common issues you might encounter when working with Laravel Eloquent Spatial and how to resolve them.
+
+## Database Issues
+
+<AccordionGroup>
+  <Accordion title="SRID mismatch errors">
+    **Problem**: You're getting errors about SRID mismatches when querying or comparing spatial data.
+
+    **Symptoms**:
+    ```
+    Binary geometry function st_contains given two geometries of different srids
+    ```
+
+    **Solution**: Ensure all your spatial data uses the same SRID. Set a default SRID in your service provider:
+
+    ```php
+    use MatanYadaev\EloquentSpatial\EloquentSpatial;
+    use MatanYadaev\EloquentSpatial\Enums\Srid;
+    use Illuminate\Support\ServiceProvider;
+
+    class AppServiceProvider extends ServiceProvider
+    {
+        public function boot(): void
+        {
+            // Set WGS84 (EPSG:4326) as default
+            EloquentSpatial::setDefaultSrid(Srid::WGS84);
+        }
+    }
+    ```
+
+    When creating geometry objects, explicitly specify the SRID:
+
+    ```php
+    $point = new Point(51.5032973, -0.1217424, Srid::WGS84->value);
+    ```
+  </Accordion>
+
+  <Accordion title="PostGIS extension not found">
+    **Problem**: PostgreSQL database doesn't have PostGIS extension enabled.
+
+    **Symptoms**:
+    ```
+    SQLSTATE[42883]: Undefined function: ST_GeomFromText
+    ```
+
+    **Solution**: Enable PostGIS extension in your PostgreSQL database:
+
+    ```sql
+    CREATE EXTENSION IF NOT EXISTS postgis;
+    ```
+
+    Or create a Laravel migration:
+
+    ```php
+    use Illuminate\Database\Migrations\Migration;
+    use Illuminate\Support\Facades\DB;
+
+    class EnablePostgisExtension extends Migration
+    {
+        public function up(): void
+        {
+            DB::statement('CREATE EXTENSION IF NOT EXISTS postgis');
+        }
+
+        public function down(): void
+        {
+            DB::statement('DROP EXTENSION IF EXISTS postgis');
+        }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="MySQL spatial column not created">
+    **Problem**: Spatial columns aren't being created in MySQL migrations.
+
+    **Symptoms**:
+    ```
+    SQLSTATE[42S22]: Column not found: Unknown column 'location'
+    ```
+
+    **Solution**: Ensure you're using the correct syntax in your migration:
+
+    ```php
+    Schema::create('places', function (Blueprint $table) {
+        $table->id();
+        $table->string('name');
+        // Correct syntax with subtype parameter
+        $table->geometry('location', subtype: 'point')->nullable();
+        $table->geometry('area', subtype: 'polygon')->nullable();
+        $table->timestamps();
+    });
+    ```
+
+    For older Laravel versions (< 11):
+
+    ```php
+    $table->geometry('location')->nullable();
+    ```
+  </Accordion>
+
+  <Accordion title="Axis order issues (MySQL 8)">
+    **Problem**: Coordinates are swapped when working with MySQL 8.
+
+    **Symptoms**: Latitude and longitude values are reversed in query results.
+
+    **Solution**: The package automatically handles axis order differences between MySQL 8 and MariaDB. If you're experiencing issues:
+
+    1. Ensure you're using a supported database version (MySQL 5.7/8, MariaDB 10, PostgreSQL 12-16)
+    2. Always use latitude/longitude order when creating Point objects:
+
+    ```php
+    // Correct: latitude first, longitude second
+    $point = new Point(51.5032973, -0.1217424);
+    
+    // Incorrect:
+    $point = new Point(-0.1217424, 51.5032973);
+    ```
+
+    The package's `AxisOrder` class handles the conversion internally based on your database.
+  </Accordion>
+</AccordionGroup>
+
+## Model and Casting Issues
+
+<AccordionGroup>
+  <Accordion title="Geometry not casting properly">
+    **Problem**: Spatial attributes return as strings instead of geometry objects.
+
+    **Solution**: Ensure you've added the `HasSpatial` trait and configured casts:
+
+    ```php
+    use Illuminate\Database\Eloquent\Model;
+    use MatanYadaev\EloquentSpatial\Objects\Point;
+    use MatanYadaev\EloquentSpatial\Objects\Polygon;
+    use MatanYadaev\EloquentSpatial\Traits\HasSpatial;
+
+    class Place extends Model
+    {
+        use HasSpatial; // Don't forget this!
+
+        protected $casts = [
+            'location' => Point::class,
+            'area' => Polygon::class,
+        ];
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Invalid GeoJSON format error">
+    **Problem**: Errors when parsing GeoJSON data.
+
+    **Symptoms**:
+    ```
+    InvalidArgumentException: Invalid GeoJSON format
+    ```
+
+    **Solution**: Ensure your GeoJSON follows the correct format:
+
+    ```php
+    // Correct GeoJSON format
+    $point = Point::fromJson('{
+        "type": "Point",
+        "coordinates": [-0.1217424, 51.5032973]
+    }');
+
+    // Or from array
+    $point = Point::fromArray([
+        'type' => 'Point',
+        'coordinates' => [-0.1217424, 51.5032973]
+    ]);
+    ```
+
+    Note: GeoJSON uses [longitude, latitude] order, which differs from the Point constructor's (latitude, longitude) order.
+  </Accordion>
+
+  <Accordion title="Type mismatch in custom geometry classes">
+    **Problem**: Getting type errors when using custom geometry classes.
+
+    **Solution**: Ensure your custom class is properly registered and extends the correct base class:
+
+    ```php
+    // Custom class
+    use MatanYadaev\EloquentSpatial\Objects\Point;
+
+    class CustomPoint extends Point
+    {
+        // Your custom methods
+    }
+
+    // Register in service provider
+    use MatanYadaev\EloquentSpatial\EloquentSpatial;
+
+    EloquentSpatial::usePoint(CustomPoint::class);
+
+    // Use in model casts
+    protected $casts = [
+        'location' => CustomPoint::class,
+    ];
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Query Issues
+
+<AccordionGroup>
+  <Accordion title="Spatial queries returning no results">
+    **Problem**: Spatial queries like `whereWithin()` return empty results despite having matching data.
+
+    **Solution**: Check the following:
+
+    1. **SRID consistency**: Ensure all geometries use the same SRID
+    2. **Coordinate order**: Verify latitude/longitude order in your Points
+    3. **Polygon closure**: Polygons must be closed (first and last point must be identical)
+
+    ```php
+    use MatanYadaev\EloquentSpatial\Objects\Polygon;
+    use MatanYadaev\EloquentSpatial\Objects\LineString;
+    use MatanYadaev\EloquentSpatial\Objects\Point;
+
+    // Correct: Last point equals first point
+    $polygon = new Polygon([
+        new LineString([
+            new Point(0, 0),
+            new Point(0, 10),
+            new Point(10, 10),
+            new Point(10, 0),
+            new Point(0, 0), // Closes the polygon
+        ])
+    ]);
+
+    Place::query()->whereWithin('location', $polygon)->get();
+    ```
+  </Accordion>
+
+  <Accordion title="Performance issues with spatial queries">
+    **Problem**: Spatial queries are slow on large datasets.
+
+    **Solution**: Add spatial indexes to your columns:
+
+    ```php
+    use Illuminate\Database\Migrations\Migration;
+    use Illuminate\Database\Schema\Blueprint;
+    use Illuminate\Support\Facades\Schema;
+
+    class AddSpatialIndexToPlaces extends Migration
+    {
+        public function up(): void
+        {
+            Schema::table('places', function (Blueprint $table) {
+                $table->spatialIndex('location');
+            });
+        }
+
+        public function down(): void
+        {
+            Schema::table('places', function (Blueprint $table) {
+                $table->dropSpatialIndex(['location']);
+            });
+        }
+    }
+    ```
+
+    For PostgreSQL with PostGIS, use GIST indexes:
+
+    ```php
+    DB::statement('CREATE INDEX places_location_gist ON places USING GIST (location)');
+    ```
+  </Accordion>
+
+  <Accordion title="Distance calculations returning unexpected values">
+    **Problem**: Distance calculations using `withDistance()` return wrong values.
+
+    **Solution**: Distance calculations depend on your SRID:
+
+    - **SRID 0**: Returns distance in degrees (not useful for real-world distances)
+    - **SRID 4326 (WGS84)**: Returns distance in degrees
+    - **Projected SRIDs**: Return distance in the projection's units (usually meters)
+
+    For accurate distances in meters with WGS84:
+
+    ```php
+    use MatanYadaev\EloquentSpatial\Objects\Point;
+
+    $startPoint = new Point(51.5032973, -0.1217424, 4326);
+
+    // Use spherical distance function
+    $places = Place::query()
+        ->whereNotNull('location')
+        ->orderByDistance('location', $startPoint)
+        ->get();
+    ```
+
+    Consider using a custom macro for distance in specific units (see [Macros](/advanced/macros) guide).
+  </Accordion>
+</AccordionGroup>
+
+## Data Import/Export Issues
+
+<AccordionGroup>
+  <Accordion title="WKT/WKB parsing errors">
+    **Problem**: Errors when importing spatial data from WKT or WKB formats.
+
+    **Solution**: Ensure the format is valid:
+
+    ```php
+    // Valid WKT
+    $point = Point::fromWkt('POINT(-0.1217424 51.5032973)');
+
+    // Valid WKB (hex string)
+    $point = Point::fromWkb('0101000000...');
+
+    // WKB as binary
+    $wkb = hex2bin('0101000000...');
+    $point = Point::fromWkb($wkb);
+    ```
+  </Accordion>
+
+  <Accordion title="JSON serialization issues">
+    **Problem**: Geometry objects not serializing correctly to JSON in API responses.
+
+    **Solution**: Geometry objects automatically serialize to GeoJSON format:
+
+    ```php
+    $place = Place::find(1);
+    
+    // Automatic GeoJSON serialization
+    return response()->json($place);
+    // location will be: {"type":"Point","coordinates":[-0.1217424,51.5032973]}
+
+    // Manual conversion
+    $geoJson = $place->location->toJson();
+    
+    // Feature collection format
+    $featureCollection = $place->location->toFeatureCollectionJson();
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Getting Help
+
+If you encounter issues not covered here:
+
+1. Check the [GitHub Issues](https://github.com/matanyadaev/laravel-eloquent-spatial/issues) for similar problems
+2. Review the [API documentation](/api-reference/geometry-classes) for detailed method signatures
+3. Ensure you're using a supported database version:
+   - MySQL 5.7 or 8.x
+   - MariaDB 10.x
+   - PostgreSQL 12-16 with PostGIS 3.4
+4. Verify your Laravel version is compatible (check package requirements)
+
+<Tip>
+When reporting issues, include your database version, Laravel version, and a minimal code example that reproduces the problem.
+</Tip>

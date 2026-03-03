@@ -1,0 +1,197 @@
+---
+title: Macros
+description: Extend geometry classes with macros to add custom methods without creating custom classes
+---
+
+Macros provide a convenient way to add new methods to the `Geometry` class and all its subclasses without creating custom geometry classes. This is useful for adding utility methods that you want available across all geometry types.
+
+## What Are Macros?
+
+Macros allow you to dynamically add methods to classes at runtime. Laravel Eloquent Spatial's `Geometry` class uses Laravel's `Macroable` trait, which means you can extend it with custom methods.
+
+## Registering a Macro
+
+Register macros in your service provider's `boot` method:
+
+```php
+use Illuminate\Support\ServiceProvider;
+use MatanYadaev\EloquentSpatial\Objects\Geometry;
+
+class AppServiceProvider extends ServiceProvider
+{
+    public function boot(): void
+    {
+        Geometry::macro('getName', function (): string {
+            /** @var Geometry $this */
+            return class_basename($this);
+        });
+    }
+}
+```
+
+## Using Macros
+
+Once registered, you can use the macro on any geometry object:
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\Point;
+
+$londonEyePoint = new Point(51.5032973, -0.1217424);
+
+echo $londonEyePoint->getName(); // "Point"
+```
+
+## Macro Examples
+
+### Get Geometry Type
+
+```php
+Geometry::macro('getType', function (): string {
+    /** @var Geometry $this */
+    return class_basename($this);
+});
+
+$point = new Point(51.5, -0.1);
+echo $point->getType(); // "Point"
+```
+
+### Check if Empty
+
+```php
+Geometry::macro('isEmpty', function (): bool {
+    /** @var Geometry $this */
+    $coordinates = $this->getCoordinates();
+    return empty($coordinates);
+});
+
+$point = new Point(0, 0);
+echo $point->isEmpty() ? 'empty' : 'not empty'; // "not empty"
+```
+
+### Custom String Representation
+
+```php
+Geometry::macro('toReadableString', function (): string {
+    /** @var Geometry $this */
+    $type = class_basename($this);
+    $coords = json_encode($this->getCoordinates());
+    return "{$type}: {$coords}";
+});
+
+$point = new Point(51.5032973, -0.1217424);
+echo $point->toReadableString();
+// "Point: [-0.1217424,51.5032973]"
+```
+
+### SRID Helper
+
+```php
+use MatanYadaev\EloquentSpatial\Enums\Srid;
+
+Geometry::macro('isWGS84', function (): bool {
+    /** @var Geometry $this */
+    return $this->srid === Srid::WGS84->value;
+});
+
+$point = new Point(51.5, -0.1, Srid::WGS84->value);
+echo $point->isWGS84() ? 'yes' : 'no'; // "yes"
+```
+
+### Coordinate Precision
+
+```php
+Geometry::macro('roundCoordinates', function (int $precision = 6): static {
+    /** @var Point $this */
+    if ($this instanceof \MatanYadaev\EloquentSpatial\Objects\Point) {
+        return new static(
+            round($this->latitude, $precision),
+            round($this->longitude, $precision),
+            $this->srid
+        );
+    }
+    
+    return $this;
+});
+
+$point = new Point(51.50329732, -0.12174243);
+$rounded = $point->roundCoordinates(4);
+echo $rounded->latitude; // 51.5033
+```
+
+## Macros vs. Custom Classes
+
+<CardGroup cols={2}>
+  <Card title="Use Macros When" icon="wand-magic-sparkles">
+    - Adding simple utility methods
+    - Method applies to all geometry types
+    - You don't need type-specific behavior
+    - Quick prototyping or one-off additions
+  </Card>
+  
+  <Card title="Use Custom Classes When" icon="code">
+    - Adding complex type-specific logic
+    - Need to override existing methods
+    - Require type safety and IDE autocomplete
+    - Building a reusable library component
+  </Card>
+</CardGroup>
+
+## Type Hinting in Macros
+
+For better IDE support, add type hints in your macro closures:
+
+```php
+Geometry::macro('customMethod', function (): string {
+    /** @var Geometry $this */
+    // Now $this-> will have autocomplete
+    return $this->toWkt();
+});
+```
+
+## Advanced: Conditional Macros
+
+You can register macros conditionally based on the environment:
+
+```php
+class AppServiceProvider extends ServiceProvider
+{
+    public function boot(): void
+    {
+        if (app()->environment('local', 'testing')) {
+            Geometry::macro('debug', function (): array {
+                /** @var Geometry $this */
+                return [
+                    'type' => class_basename($this),
+                    'srid' => $this->srid,
+                    'wkt' => $this->toWkt(),
+                    'coordinates' => $this->getCoordinates(),
+                ];
+            });
+        }
+    }
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Keep macros simple and focused">
+    Macros should do one thing well. For complex logic, consider custom classes instead.
+  </Accordion>
+  
+  <Accordion title="Document your macros">
+    Since macros aren't visible in the class definition, document them clearly in your service provider or a separate documentation file.
+  </Accordion>
+  
+  <Accordion title="Avoid name conflicts">
+    Choose unique names for your macros to avoid conflicts with existing methods or future package updates.
+  </Accordion>
+  
+  <Accordion title="Type hint for IDE support">
+    Always add `@var` annotations in macro closures for better IDE autocomplete.
+  </Accordion>
+</AccordionGroup>
+
+<Tip>
+Macros are registered globally and available throughout your application. They're perfect for adding utility methods that you use frequently across different parts of your codebase.
+</Tip>

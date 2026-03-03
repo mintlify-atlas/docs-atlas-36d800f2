@@ -1,0 +1,142 @@
+---
+title: Introduction
+description: Work with spatial data types and functions in Laravel with ease
+---
+
+Laravel Eloquent Spatial allows you to easily work with spatial data types and functions in your Laravel applications. Store and query geographic data like points, polygons, and complex geometries with the full power of MySQL, MariaDB, and PostgreSQL/PostGIS.
+
+## Why Laravel Eloquent Spatial?
+
+Building location-aware applications shouldn't be complicated. Laravel Eloquent Spatial brings spatial database functionality to Laravel's elegant Eloquent ORM, letting you work with geographic data using familiar patterns.
+
+<CardGroup cols={2}>
+  <Card title="Simple API" icon="code">
+    Work with spatial data using intuitive PHP objects. Create points, polygons, and other geometries with clean, readable code.
+  </Card>
+  <Card title="Database Agnostic" icon="database">
+    Full support for MySQL 5.7/8, MariaDB 10, and PostgreSQL 12-16 with PostGIS 3.4.
+  </Card>
+  <Card title="Powerful Queries" icon="magnifying-glass">
+    Filter by distance, check if points are within polygons, find intersecting geometries, and more with built-in query scopes.
+  </Card>
+  <Card title="GeoJSON Support" icon="location-dot">
+    Seamlessly convert between PHP objects, GeoJSON, WKT, and WKB formats.
+  </Card>
+</CardGroup>
+
+## Quick Example
+
+Here's how simple it is to work with spatial data:
+
+```php
+use App\Models\Place;
+use MatanYadaev\EloquentSpatial\Objects\Point;
+
+// Create a location
+$londonEye = Place::create([
+    'name' => 'London Eye',
+    'location' => new Point(51.5032973, -0.1217424),
+]);
+
+// Query by distance
+$nearbyPlaces = Place::query()
+    ->whereDistanceSphere('location', new Point(51.5, -0.12), '<', 5000)
+    ->get();
+
+// Access coordinates
+echo $londonEye->location->latitude;  // 51.5032973
+echo $londonEye->location->longitude; // -0.1217424
+```
+
+## Supported Geometry Types
+
+Work with all standard spatial data types:
+
+- **Point** - A single location with latitude and longitude
+- **MultiPoint** - A collection of points
+- **LineString** - A line made up of two or more points
+- **MultiLineString** - A collection of line strings
+- **Polygon** - An area defined by one or more line strings
+- **MultiPolygon** - A collection of polygons
+- **GeometryCollection** - A collection of any geometry types
+
+## Supported Databases
+
+<CardGroup cols={3}>
+  <Card title="MySQL" icon="database">
+    MySQL 5.7 and 8.x
+  </Card>
+  <Card title="MariaDB" icon="database">
+    MariaDB 10.x
+  </Card>
+  <Card title="PostgreSQL" icon="database">
+    PostgreSQL 12-16 with PostGIS 3.4
+  </Card>
+</CardGroup>
+
+## Get Started
+
+Ready to add spatial capabilities to your Laravel app?
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Install the package via Composer and configure your database
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Build your first spatial model in minutes
+  </Card>
+</CardGroup>
+
+## Features at a Glance
+
+<Note>
+  All spatial operations use your database's native spatial functions for optimal performance.
+</Note>
+
+### Distance Queries
+
+Find locations within a radius, calculate distances, and order results by proximity:
+
+```php
+// Find places within 10km
+Place::whereDistanceSphere('location', $point, '<', 10000)->get();
+
+// Get distance to each place
+Place::withDistanceSphere('location', $point)->get();
+
+// Order by nearest first
+Place::orderByDistanceSphere('location', $point)->get();
+```
+
+### Spatial Relationships
+
+Check if geometries intersect, contain, touch, or have other spatial relationships:
+
+```php
+// Find points within a polygon
+Place::whereWithin('location', $polygon)->get();
+
+// Find polygons containing a point
+Place::whereContains('area', $point)->get();
+
+// Check if geometries intersect
+Place::whereIntersects('area', $otherGeometry)->get();
+```
+
+### Flexible Formats
+
+Work with GeoJSON, WKT, WKB, and PHP arrays:
+
+```php
+// From GeoJSON
+$point = Point::fromJson('{"type":"Point","coordinates":[1.0,2.0]}');
+
+// To GeoJSON
+$json = $point->toJson();
+
+// From WKT
+$point = Point::fromWkt('POINT(1 2)');
+
+// To array
+$array = $point->toArray();
+```

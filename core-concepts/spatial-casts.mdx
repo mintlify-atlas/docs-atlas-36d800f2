@@ -1,0 +1,460 @@
+---
+title: Spatial Casts
+description: Learn how GeometryCast integrates spatial data with Laravel Eloquent models
+---
+
+## Overview
+
+The `GeometryCast` class (`src/GeometryCast.php:14`) is the bridge between database spatial columns and PHP geometry objects in Laravel Eloquent. It automatically converts spatial data stored as WKB (Well-Known Binary) in the database to geometry objects when retrieving records, and converts geometry objects back to database expressions when saving.
+
+## How It Works
+
+The cast handles bidirectional conversion:
+
+1. **Retrieval**: Database WKB → `GeometryCast::get()` → Geometry object
+2. **Storage**: Geometry object → `GeometryCast::set()` → `ST_GeomFromText()` SQL expression → Database
+
+```php
+class GeometryCast implements CastsAttributes
+{
+    public function get($model, string $key, $value, array $attributes): ?Geometry
+    {
+        if (! $value) {
+            return null;
+        }
+        
+        // Convert WKB to Geometry object
+        return $this->className::fromWkb($value);
+    }
+    
+    public function set($model, string $key, $value, array $attributes): ?ExpressionContract
+    {
+        if (! $value) {
+            return null;
+        }
+        
+        // Convert Geometry to SQL expression
+        return $value->toSqlExpression($model->getConnection());
+    }
+}
+```
+
+## Basic Model Setup
+
+To use spatial casts in your models, add the `HasSpatial` trait and define casts for your spatial columns:
+
+```php
+use Illuminate\Database\Eloquent\Model;
+use MatanYadaev\EloquentSpatial\Objects\Point;
+use MatanYadaev\EloquentSpatial\Objects\Polygon;
+use MatanYadaev\EloquentSpatial\Traits\HasSpatial;
+
+class Place extends Model
+{
+    use HasSpatial;
+    
+    protected $fillable = [
+        'name',
+        'location',
+        'area',
+    ];
+    
+    protected $casts = [
+        'location' => Point::class,
+        'area' => Polygon::class,
+    ];
+}
+```
+
+<Info>
+The `HasSpatial` trait provides spatial query scopes like `whereWithin()`, `whereContains()`, and `withDistance()`. Learn more in the Spatial Queries documentation.
+</Info>
+
+## Migration Setup
+
+Create spatial columns in your migrations using the `geometry()` method:
+
+```php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class CreatePlacesTable extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('places', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->geometry('location', subtype: 'point')->nullable();
+            $table->geometry('area', subtype: 'polygon')->nullable();
+            $table->timestamps();
+        });
+    }
+    
+    public function down(): void
+    {
+        Schema::dropIfExists('places');
+    }
+}
+```
+
+### Available Subtypes
+
+- `point`
+- `linestring`
+- `polygon`
+- `multipoint`
+- `multilinestring`
+- `multipolygon`
+- `geometrycollection`
+
+## Creating Records
+
+Once your model is configured, you can create records with spatial data naturally:
+
+```php
+use App\Models\Place;
+use MatanYadaev\EloquentSpatial\Objects\Point;
+use MatanYadaev\EloquentSpatial\Objects\Polygon;
+use MatanYadaev\EloquentSpatial\Objects\LineString;
+use MatanYadaev\EloquentSpatial\Enums\Srid;
+
+// Create with Point
+$londonEye = Place::create([
+    'name' => 'London Eye',
+    'location' => new Point(51.5032973, -0.1217424),
+]);
+
+// Create with SRID
+$whiteHouse = Place::create([
+    'name' => 'White House',
+    'location' => new Point(38.8976763, -77.0365298, Srid::WGS84),
+]);
+
+// Create with Polygon
+$vaticanCity = Place::create([
+    'name' => 'Vatican City',
+    'area' => new Polygon([
+        new LineString([
+            new Point(41.90746728266806, 12.455363273620605),
+            new Point(41.906636872349075, 12.450309991836548),
+            new Point(41.90197359839437, 12.445632219314575),
+            new Point(41.90746728266806, 12.455363273620605),
+        ]),
+    ]),
+]);
+```
+
+## Retrieving Data
+
+When you retrieve models, spatial columns are automatically cast to geometry objects:
+
+```php
+$place = Place::find(1);
+
+// Access Point properties
+echo $place->location->latitude;  // 51.5032973
+echo $place->location->longitude; // -0.1217424
+echo $place->location->srid;      // 4326
+
+// Serialize to different formats
+$wkt = $place->location->toWkt();
+$json = $place->location->toJson();
+$array = $place->location->toArray();
+```
+
+## Updating Records
+
+Update spatial attributes just like any other model attribute:
+
+```php
+$place = Place::find(1);
+
+// Update with new Point
+$place->location = new Point(51.5154563, -0.1419567);
+$place->save();
+
+// Or use update method
+$place->update([
+    'location' => new Point(51.5154563, -0.1419567),
+]);
+```
+
+## Array Input
+
+The cast automatically handles array input, converting it to the appropriate geometry type:
+
+```php
+// Array in GeoJSON format
+$place = Place::create([
+    'name' => 'London Eye',
+    'location' => [
+        'type' => 'Point',
+        'coordinates' => [-0.1217424, 51.5032973],
+    ],
+]);
+
+// The cast converts this to a Point object automatically
+```
+
+<Note>
+When using array input, coordinates should be in GeoJSON format (longitude, latitude).
+</Note>
+
+## Type Safety
+
+The `GeometryCast` enforces type safety, throwing an `InvalidArgumentException` if you try to assign an incorrect geometry type (`src/GeometryCast.php:68-73`):
+
+```php
+class Place extends Model
+{
+    protected $casts = [
+        'location' => Point::class,
+    ];
+}
+
+// This will throw InvalidArgumentException
+$place->location = new Polygon([...]);
+// Expected MatanYadaev\EloquentSpatial\Objects\Point, 
+// MatanYadaev\EloquentSpatial\Objects\Polygon given.
+```
+
+## Nullable Columns
+
+The cast handles nullable columns gracefully:
+
+```php
+// Set to null
+$place->location = null;
+$place->save();
+
+// Retrieve null
+$place = Place::find(1);
+var_dump($place->location); // null
+```
+
+## Using with Accessors and Mutators
+
+You can combine spatial casts with accessors and mutators:
+
+```php
+use Illuminate\Database\Eloquent\Casts\Attribute;
+
+class Place extends Model
+{
+    protected $casts = [
+        'location' => Point::class,
+    ];
+    
+    // Accessor
+    protected function locationLabel(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => sprintf(
+                '%s, %s',
+                $this->location->latitude,
+                $this->location->longitude
+            ),
+        );
+    }
+    
+    // Mutator
+    protected function location(): Attribute
+    {
+        return Attribute::make(
+            set: fn (Point $value) => $value->srid === 0
+                ? new Point($value->latitude, $value->longitude, Srid::WGS84)
+                : $value,
+        );
+    }
+}
+```
+
+## SQL Expression Handling
+
+The cast can work with raw SQL expressions for complex queries (`src/GeometryCast.php:38-42`):
+
+```php
+use Illuminate\Support\Facades\DB;
+
+$place = Place::create([
+    'name' => 'Centroid Example',
+    'location' => DB::raw("ST_GeomFromText('POINT(-0.1217424 51.5032973)', 4326)"),
+]);
+
+// The cast recognizes the expression and extracts WKT and SRID
+```
+
+## Custom Geometry Classes
+
+You can use custom geometry classes with the cast system:
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\Point;
+use MatanYadaev\EloquentSpatial\EloquentSpatial;
+
+// 1. Create custom class
+class ExtendedPoint extends Point
+{
+    public function distanceInKm(Point $other): float
+    {
+        // Custom calculation
+        return $this->distance($other) / 1000;
+    }
+}
+
+// 2. Register in service provider
+class AppServiceProvider extends ServiceProvider
+{
+    public function boot(): void
+    {
+        EloquentSpatial::usePoint(ExtendedPoint::class);
+    }
+}
+
+// 3. Use in model
+class Place extends Model
+{
+    protected $casts = [
+        'location' => ExtendedPoint::class,
+    ];
+}
+
+// 4. Use custom methods
+$place1 = Place::find(1);
+$place2 = Place::find(2);
+echo $place1->location->distanceInKm($place2->location);
+```
+
+## Database-Specific Behavior
+
+The cast automatically handles database-specific requirements:
+
+### MySQL 8 / MariaDB
+
+```php
+// GeometryCast generates:
+ST_GeomFromText('POINT(-0.1217424 51.5032973)', 4326, 'axis-order=long-lat')
+```
+
+### PostgreSQL with PostGIS
+
+```php
+// GeometryCast generates:
+ST_GeomFromText('POINT(-0.1217424 51.5032973)', 4326)
+```
+
+<Info>
+The axis-order parameter is automatically added for MySQL 8 to ensure consistent coordinate ordering. See the Coordinate Systems documentation for more details.
+</Info>
+
+## Casting in JSON Responses
+
+When returning models in API responses, geometry objects serialize to GeoJSON:
+
+```php
+Route::get('/places/{place}', function (Place $place) {
+    return $place;
+});
+
+// Response:
+// {
+//   "id": 1,
+//   "name": "London Eye",
+//   "location": {
+//     "type": "Point",
+//     "coordinates": [-0.1217424, 51.5032973]
+//   }
+// }
+```
+
+Customize serialization using API resources:
+
+```php
+use Illuminate\Http\Resources\Json\JsonResource;
+
+class PlaceResource extends JsonResource
+{
+    public function toArray($request)
+    {
+        return [
+            'id' => $this->id,
+            'name' => $this->name,
+            'latitude' => $this->location->latitude,
+            'longitude' => $this->location->longitude,
+            'wkt' => $this->location->toWkt(),
+        ];
+    }
+}
+```
+
+## Performance Considerations
+
+### Eager Loading
+
+Spatial columns are loaded automatically with the model:
+
+```php
+// Both queries load spatial data
+$places = Place::all();
+$place = Place::find(1);
+```
+
+### Selective Column Loading
+
+Exclude spatial columns when not needed to reduce memory usage:
+
+```php
+// Only load non-spatial columns
+$places = Place::select(['id', 'name'])->get();
+
+// Load spatial column only when needed
+$place = Place::select(['id', 'name', 'location'])->first();
+```
+
+## Troubleshooting
+
+### Issue: "Expected X, Y given"
+
+This error occurs when assigning the wrong geometry type to a column:
+
+```php
+// Wrong:
+$place->location = new Polygon([...]); // location is cast as Point
+
+// Correct:
+$place->location = new Point(51.5032973, -0.1217424);
+```
+
+### Issue: Null values not working
+
+Ensure your database column is nullable:
+
+```php
+// Migration
+$table->geometry('location', subtype: 'point')->nullable();
+```
+
+### Issue: SRID not persisted
+
+Some databases don't enforce SRID. Set a default SRID:
+
+```php
+use MatanYadaev\EloquentSpatial\EloquentSpatial;
+use MatanYadaev\EloquentSpatial\Enums\Srid;
+
+// In a service provider
+EloquentSpatial::setDefaultSrid(Srid::WGS84);
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Geometry Objects" icon="shapes" href="/core-concepts/geometry-objects">
+    Learn about all available geometry types and their features
+  </Card>
+  <Card title="Spatial Queries" icon="magnifying-glass" href="/guides/querying-spatial-data">
+    Query models using spatial conditions
+  </Card>
+</CardGroup>

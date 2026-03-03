@@ -1,0 +1,420 @@
+---
+title: Coordinate Systems
+description: Understanding Spatial Reference System Identifiers (SRID) and coordinate systems in Laravel Eloquent Spatial
+---
+
+## Overview
+
+A Spatial Reference System Identifier (SRID) is a unique identifier that specifies which coordinate system should be used to interpret spatial coordinates. Different SRIDs represent different ways of mapping points on Earth's surface (or other spatial domains) to numerical coordinates.
+
+## Why SRIDs Matter
+
+The same coordinates can represent different locations depending on the SRID:
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\Point;
+use MatanYadaev\EloquentSpatial\Enums\Srid;
+
+// WGS84 (GPS coordinates)
+$pointWGS84 = new Point(51.5032973, -0.1217424, Srid::WGS84);
+echo $pointWGS84->srid; // 4326
+
+// Web Mercator (web mapping)
+$pointWebMercator = new Point(51.5032973, -0.1217424, Srid::WEB_MERCATOR);
+echo $pointWebMercator->srid; // 3857
+
+// Default (no specified coordinate system)
+$pointDefault = new Point(51.5032973, -0.1217424);
+echo $pointDefault->srid; // 0
+```
+
+<Warning>
+Using the wrong SRID can lead to inaccurate distance calculations and spatial query results. Always specify an appropriate SRID for your use case.
+</Warning>
+
+## Common SRIDs
+
+The package provides an `Srid` enum (`src/Enums/Srid.php:5`) with commonly used spatial reference systems:
+
+### WGS84 (EPSG:4326)
+
+```php
+use MatanYadaev\EloquentSpatial\Enums\Srid;
+
+Srid::WGS84->value; // 4326
+```
+
+**Use for:**
+- GPS coordinates
+- Geographic latitude/longitude data
+- Mobile device locations
+- Most general-purpose mapping
+
+**Properties:**
+- Global coverage
+- Units: Degrees
+- Most widely used coordinate system
+- Compatible with Google Maps, GPS devices, and most GIS systems
+
+**Example:**
+```php
+use MatanYadaev\EloquentSpatial\Objects\Point;
+use MatanYadaev\EloquentSpatial\Enums\Srid;
+
+$londonEye = new Point(
+    latitude: 51.5032973,
+    longitude: -0.1217424,
+    srid: Srid::WGS84
+);
+```
+
+### Web Mercator (EPSG:3857)
+
+```php
+use MatanYadaev\EloquentSpatial\Enums\Srid;
+
+Srid::WEB_MERCATOR->value; // 3857
+```
+
+**Use for:**
+- Web mapping applications
+- Google Maps, OpenStreetMap, Bing Maps
+- Tile-based mapping
+
+**Properties:**
+- Optimized for web display
+- Units: Meters
+- Distorts area and distance at high latitudes
+- Not suitable for accurate distance/area calculations
+
+**Example:**
+```php
+$point = new Point(
+    latitude: 51.5032973,
+    longitude: -0.1217424,
+    srid: Srid::WEB_MERCATOR
+);
+```
+
+<Info>
+For more coordinate systems, visit [epsg.org](https://epsg.org) or use the integer SRID value directly.
+</Info>
+
+## Setting Default SRID
+
+By default, geometries use SRID 0 (undefined coordinate system). Set a default SRID for your application:
+
+```php
+use MatanYadaev\EloquentSpatial\EloquentSpatial;
+use MatanYadaev\EloquentSpatial\Enums\Srid;
+use Illuminate\Support\ServiceProvider;
+
+class AppServiceProvider extends ServiceProvider
+{
+    public function boot(): void
+    {
+        EloquentSpatial::setDefaultSrid(Srid::WGS84);
+    }
+}
+```
+
+After setting a default, all geometries created without an explicit SRID will use it:
+
+```php
+// Before setting default
+$point = new Point(51.5032973, -0.1217424);
+echo $point->srid; // 0
+
+// After setting default to WGS84
+$point = new Point(51.5032973, -0.1217424);
+echo $point->srid; // 4326
+```
+
+## SRID in Models
+
+When storing geometry in models, the SRID is persisted to the database:
+
+```php
+use App\Models\Place;
+use MatanYadaev\EloquentSpatial\Objects\Point;
+use MatanYadaev\EloquentSpatial\Enums\Srid;
+
+// Create with explicit SRID
+$place = Place::create([
+    'name' => 'London Eye',
+    'location' => new Point(51.5032973, -0.1217424, Srid::WGS84),
+]);
+
+// Retrieve - SRID is preserved
+$place = Place::find(1);
+echo $place->location->srid; // 4326
+```
+
+## Database Storage
+
+How SRIDs are stored varies by database:
+
+### MySQL/MariaDB
+
+```sql
+-- SRID is stored as part of the geometry value
+INSERT INTO places (location) 
+VALUES (ST_GeomFromText('POINT(-0.1217424 51.5032973)', 4326));
+
+-- Query with SRID
+SELECT ST_SRID(location) FROM places;
+```
+
+### PostgreSQL with PostGIS
+
+```sql
+-- SRID can be enforced at column level
+CREATE TABLE places (
+    id SERIAL PRIMARY KEY,
+    location GEOMETRY(Point, 4326)
+);
+
+-- PostGIS enforces SRID matching
+INSERT INTO places (location) 
+VALUES (ST_GeomFromText('POINT(-0.1217424 51.5032973)', 4326));
+```
+
+<Note>
+PostgreSQL with PostGIS provides stronger SRID enforcement at the column level, while MySQL/MariaDB store SRID per-value.
+</Note>
+
+## Coordinate Order: Latitude vs Longitude
+
+Different standards use different coordinate ordering:
+
+### PHP Objects (Developer-Friendly)
+
+```php
+// Point constructor: latitude first, longitude second
+new Point($latitude, $longitude, $srid);
+new Point(51.5032973, -0.1217424, Srid::WGS84);
+//        ↑ lat       ↑ lon
+```
+
+### WKT/Database (Standards-Compliant)
+
+```php
+// WKT format: longitude first (X), latitude second (Y)
+$point = new Point(51.5032973, -0.1217424);
+echo $point->toWkt(); // "POINT(-0.1217424 51.5032973)"
+//                              ↑ lon       ↑ lat
+```
+
+### GeoJSON
+
+```php
+// GeoJSON: longitude first, latitude second
+$point = new Point(51.5032973, -0.1217424);
+echo $point->toJson();
+// {"type":"Point","coordinates":[-0.1217424,51.5032973]}
+//                                 ↑ lon       ↑ lat
+```
+
+<Warning>
+Always be aware of coordinate ordering when working with different formats. The package handles conversions automatically, but manual WKT strings must use longitude-first ordering.
+</Warning>
+
+## Axis Order in MySQL 8+
+
+MySQL 8.0 introduced stricter compliance with SRID specifications for coordinate ordering. The package handles this automatically (`src/Objects/Geometry.php:202-212`):
+
+```php
+// MySQL 8.0+ (with axis-order parameter)
+ST_GeomFromText('POINT(-0.1217424 51.5032973)', 4326, 'axis-order=long-lat')
+
+// MariaDB / older MySQL (without axis-order)
+ST_GeomFromText('POINT(-0.1217424 51.5032973)', 4326)
+```
+
+The `AxisOrder` helper automatically detects the database type and applies the correct format, so you don't need to worry about this in your application code.
+
+## SRID in Spatial Queries
+
+Spatial queries consider SRID when calculating distances and relationships:
+
+```php
+use App\Models\Place;
+use MatanYadaev\EloquentSpatial\Objects\Point;
+use MatanYadaev\EloquentSpatial\Enums\Srid;
+
+$userLocation = new Point(51.5154563, -0.1419567, Srid::WGS84);
+
+// Find places within 1000 meters
+$nearbyPlaces = Place::query()
+    ->whereDistance('location', $userLocation, '<=', 1000)
+    ->get();
+
+// Get places with calculated distance
+$placesWithDistance = Place::query()
+    ->withDistance('location', $userLocation)
+    ->orderByDistance('location', $userLocation)
+    ->get();
+
+foreach ($placesWithDistance as $place) {
+    echo "{$place->name}: {$place->distance} meters\n";
+}
+```
+
+<Info>
+Distance calculations are only accurate when using appropriate projected coordinate systems (like UTM zones) or geodetic functions with WGS84.
+</Info>
+
+## Converting Between SRIDs
+
+The package doesn't provide built-in coordinate transformations, but you can use database functions:
+
+### MySQL/MariaDB
+
+```php
+use Illuminate\Support\Facades\DB;
+
+$point = Place::find(1)->location;
+
+// Transform using ST_Transform (requires SRID definitions)
+$transformed = DB::selectOne(
+    'SELECT ST_AsText(ST_Transform(ST_GeomFromText(?, ?), ?)) as wkt',
+    [$point->toWkt(), $point->srid, 3857]
+);
+
+$webMercatorPoint = Point::fromWkt($transformed->wkt, 3857);
+```
+
+### PostgreSQL with PostGIS
+
+```php
+// PostGIS has built-in ST_Transform
+$transformed = DB::selectOne(
+    'SELECT ST_AsText(ST_Transform(ST_GeomFromText(?, ?), ?)) as wkt',
+    [$point->toWkt(), $point->srid, 3857]
+);
+
+$webMercatorPoint = Point::fromWkt($transformed->wkt, 3857);
+```
+
+<Note>
+For complex coordinate transformations, consider using dedicated libraries like PROJ or proj4php.
+</Note>
+
+## Best Practices
+
+### Always Specify SRID
+
+```php
+// Good - Explicit SRID
+$point = new Point(51.5032973, -0.1217424, Srid::WGS84);
+
+// Okay - Using default SRID (if configured)
+$point = new Point(51.5032973, -0.1217424);
+
+// Bad - SRID 0 (undefined)
+$point = new Point(51.5032973, -0.1217424, 0);
+```
+
+### Use Consistent SRIDs
+
+```php
+// All locations in the same SRID
+class Place extends Model
+{
+    protected static function booted()
+    {
+        static::creating(function (Place $place) {
+            if ($place->location && $place->location->srid === 0) {
+                $place->location = new Point(
+                    $place->location->latitude,
+                    $place->location->longitude,
+                    Srid::WGS84
+                );
+            }
+        });
+    }
+}
+```
+
+### Document Your SRID Choice
+
+```php
+/**
+ * Location of the place in WGS84 coordinates (EPSG:4326).
+ * This is standard GPS latitude/longitude.
+ */
+protected $casts = [
+    'location' => Point::class,
+];
+```
+
+### Validate SRID Compatibility
+
+```php
+use Illuminate\Validation\Rule;
+
+public function rules()
+{
+    return [
+        'location' => [
+            'required',
+            function ($attribute, $value, $fail) {
+                if ($value instanceof Point && $value->srid !== 4326) {
+                    $fail('The location must use WGS84 (SRID 4326).');
+                }
+            },
+        ],
+    ];
+}
+```
+
+## Troubleshooting
+
+### Issue: Distance calculations are inaccurate
+
+**Cause:** Using SRID 0 or WGS84 for precise distance measurements.
+
+**Solution:** For accurate distance calculations over large areas, consider:
+- Using PostGIS's geography type (automatically uses spherical calculations)
+- Using a projected coordinate system (UTM) appropriate for your region
+- Using geodetic distance functions
+
+### Issue: "SRID mismatch" errors
+
+**Cause:** Comparing geometries with different SRIDs.
+
+**Solution:**
+```php
+// Transform one geometry to match the other's SRID
+$point1 = new Point(51.5032973, -0.1217424, Srid::WGS84);
+$point2 = new Point(51.5154563, -0.1419567, Srid::WEB_MERCATOR);
+
+// Transform point2 to WGS84 before comparison
+// (using database transformation as shown earlier)
+```
+
+### Issue: Coordinates appear swapped
+
+**Cause:** Confusion between latitude-first (PHP) and longitude-first (WKT/GeoJSON) ordering.
+
+**Solution:** Always use the Point constructor with latitude first:
+```php
+// Correct
+new Point($latitude, $longitude, $srid);
+
+// When parsing WKT, the package handles ordering
+$point = Point::fromWkt('POINT(-0.1217424 51.5032973)', Srid::WGS84);
+echo $point->latitude;  // 51.5032973
+echo $point->longitude; // -0.1217424
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Geometry Objects" icon="shapes" href="/core-concepts/geometry-objects">
+    Learn about geometry types and their properties
+  </Card>
+  <Card title="Spatial Queries" icon="magnifying-glass" href="/guides/querying-spatial-data">
+    Use coordinate systems in spatial queries
+  </Card>
+</CardGroup>

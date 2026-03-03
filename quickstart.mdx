@@ -1,80 +1,347 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick Start
+description: Build your first Laravel model with spatial data in minutes
 ---
 
-## Get started in three steps
+This guide will walk you through creating a simple location-based application using Laravel Eloquent Spatial.
 
-Get your documentation site running locally and make your first customization.
+## What We'll Build
 
-### Step 1: Set up your local environment
+We'll create a `Place` model that stores locations with points and areas with polygons, then query them using spatial functions.
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+## Create Your Model
 
-### Step 2: Deploy your changes
+<Steps>
+  <Step title="Generate the model and migration">
+    Create a new model with a migration file:
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    ```bash
+    php artisan make:model Place --migration
+    ```
+  </Step>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+  <Step title="Add spatial columns to the migration">
+    Open the generated migration file and add spatial columns:
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+    ```php
+    use Illuminate\Database\Migrations\Migration;
+    use Illuminate\Database\Schema\Blueprint;
+    use Illuminate\Support\Facades\Schema;
 
-### Step 3: Go live
+    return new class extends Migration
+    {
+        public function up(): void
+        {
+            Schema::create('places', function (Blueprint $table) {
+                $table->id();
+                $table->string('name')->unique();
+                $table->geometry('location', subtype: 'point')->nullable();
+                $table->geometry('area', subtype: 'polygon')->nullable();
+                $table->timestamps();
+            });
+        }
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+        public function down(): void
+        {
+            Schema::dropIfExists('places');
+        }
+    };
+    ```
 
-## Next steps
+    <Info>
+      The `geometry()` method accepts a `subtype` parameter to specify the geometry type: `point`, `linestring`, `polygon`, `multipoint`, `multilinestring`, `multipolygon`, or `geometrycollection`.
+    </Info>
+  </Step>
 
-Now that you have your docs running, explore these key features:
+  <Step title="Run the migration">
+    Execute the migration to create the table:
 
-<CardGroup cols={2}>
+    ```bash
+    php artisan migrate
+    ```
+  </Step>
 
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
+  <Step title="Configure the model">
+    Update your `Place` model to use the `HasSpatial` trait and configure the casts:
 
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
+    ```php
+    namespace App\Models;
 
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
+    use Illuminate\Database\Eloquent\Model;
+    use MatanYadaev\EloquentSpatial\Objects\Point;
+    use MatanYadaev\EloquentSpatial\Objects\Polygon;
+    use MatanYadaev\EloquentSpatial\Traits\HasSpatial;
 
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
+    /**
+     * @property Point $location
+     * @property Polygon $area
+     */
+    class Place extends Model
+    {
+        use HasSpatial;
 
-</CardGroup>
+        protected $fillable = [
+            'name',
+            'location',
+            'area',
+        ];
+
+        protected $casts = [
+            'location' => Point::class,
+            'area' => Polygon::class,
+        ];
+    }
+    ```
+
+    <Note>
+      The `HasSpatial` trait adds all the spatial query scopes to your model.
+    </Note>
+  </Step>
+</Steps>
+
+## Create Spatial Data
+
+Now let's create some places with spatial data.
+
+### Creating Points
+
+```php
+use App\Models\Place;
+use MatanYadaev\EloquentSpatial\Objects\Point;
+use MatanYadaev\EloquentSpatial\Enums\Srid;
+
+// Create a place with a point location
+$londonEye = Place::create([
+    'name' => 'London Eye',
+    'location' => new Point(51.5032973, -0.1217424),
+]);
+
+// Create with SRID (WGS84 for GPS coordinates)
+$whiteHouse = Place::create([
+    'name' => 'White House',
+    'location' => new Point(38.8976763, -77.0365298, Srid::WGS84->value),
+]);
+```
+
+<Info>
+  Point coordinates are specified as `latitude, longitude` (Y, X in spatial terms).
+</Info>
+
+### Creating Polygons
+
+Polygons are created from one or more LineStrings (rings). The first ring is the outer boundary:
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\Polygon;
+use MatanYadaev\EloquentSpatial\Objects\LineString;
+use MatanYadaev\EloquentSpatial\Objects\Point;
+
+$vaticanCity = Place::create([
+    'name' => 'Vatican City',
+    'area' => new Polygon([
+        new LineString([
+            new Point(12.455363273620605, 41.90746728266806),
+            new Point(12.450309991836548, 41.906636872349075),
+            new Point(12.445632219314575, 41.90197359839437),
+            new Point(12.447413206100464, 41.90027269624499),
+            new Point(12.457906007766724, 41.90000118654431),
+            new Point(12.458517551422117, 41.90281205461268),
+            new Point(12.457584142684937, 41.903107507989986),
+            new Point(12.457734346389769, 41.905918239316286),
+            new Point(12.45572805404663, 41.90637337450963),
+            new Point(12.455363273620605, 41.90746728266806), // Close the ring
+        ]),
+    ]),
+]);
+```
+
+<Warning>
+  Polygon rings must be closed - the first and last points must be identical.
+</Warning>
+
+## Access Spatial Data
+
+Retrieve and work with spatial properties:
+
+```php
+$place = Place::find($londonEye->id);
+
+// Access Point properties
+echo $place->location->latitude;  // 51.5032973
+echo $place->location->longitude; // -0.1217424
+echo $place->location->srid;      // 0 (or 4326 if specified)
+
+// Convert to different formats
+echo $place->location->toJson();  // GeoJSON string
+echo $place->location->toWkt();   // Well-Known Text
+$array = $place->location->toArray(); // PHP array
+```
+
+## Query Spatial Data
+
+The `HasSpatial` trait provides powerful query scopes.
+
+### Find Nearby Places
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\Point;
+
+$searchPoint = new Point(51.5, -0.12);
+
+// Find places within 5km (5000 meters)
+$nearbyPlaces = Place::query()
+    ->whereDistanceSphere('location', $searchPoint, '<', 5000)
+    ->get();
+
+// Get places with their distance from the search point
+$placesWithDistance = Place::query()
+    ->withDistanceSphere('location', $searchPoint)
+    ->get();
+
+foreach ($placesWithDistance as $place) {
+    echo "{$place->name}: {$place->distance} meters away\n";
+}
+
+// Order by distance (nearest first)
+$sortedPlaces = Place::query()
+    ->orderByDistanceSphere('location', $searchPoint)
+    ->get();
+```
+
+### Check Spatial Relationships
+
+```php
+// Find places within a polygon
+$polygon = Polygon::fromJson('{"type":"Polygon","coordinates":[[[51.5,-0.2],[51.6,-0.2],[51.6,-0.1],[51.5,-0.1],[51.5,-0.2]]]}');
+
+$placesInArea = Place::query()
+    ->whereWithin('location', $polygon)
+    ->get();
+
+// Find areas that contain a specific point
+$point = new Point(51.5, -0.12);
+
+$containingAreas = Place::query()
+    ->whereContains('area', $point)
+    ->get();
+
+// Check if geometries intersect
+$intersecting = Place::query()
+    ->whereIntersects('area', $otherPolygon)
+    ->get();
+```
+
+## Working with GeoJSON
+
+GeoJSON is a popular format for geographic data. You can easily convert between GeoJSON and geometry objects:
+
+<CodeGroup>
+
+```php From GeoJSON
+use MatanYadaev\EloquentSpatial\Objects\Point;
+use MatanYadaev\EloquentSpatial\Objects\Polygon;
+
+// From GeoJSON string
+$point = Point::fromJson('{"type":"Point","coordinates":[-0.1217424,51.5032973]}');
+
+// From GeoJSON array
+$polygon = Polygon::fromArray([
+    'type' => 'Polygon',
+    'coordinates' => [
+        [
+            [-0.2, 51.5],
+            [-0.1, 51.5],
+            [-0.1, 51.6],
+            [-0.2, 51.6],
+            [-0.2, 51.5],
+        ],
+    ],
+]);
+```
+
+```php To GeoJSON
+$place = Place::first();
+
+// To GeoJSON string
+$geoJson = $place->location->toJson();
+// {"type":"Point","coordinates":[-0.1217424,51.5032973]}
+
+// To GeoJSON array
+$array = $place->location->toArray();
+// ['type' => 'Point', 'coordinates' => [-0.1217424, 51.5032973]]
+
+// To GeoJSON FeatureCollection
+$featureCollection = $place->location->toFeatureCollectionJson();
+```
+
+</CodeGroup>
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  In GeoJSON, coordinates are in `[longitude, latitude]` order (X, Y), which is the opposite of how you create Point objects in PHP.
 </Note>
+
+## Complete Example
+
+Here's a complete example putting it all together:
+
+```php
+use App\Models\Place;
+use MatanYadaev\EloquentSpatial\Objects\Point;
+use MatanYadaev\EloquentSpatial\Enums\Srid;
+
+// Create some places
+Place::create([
+    'name' => 'Big Ben',
+    'location' => new Point(51.5007, -0.1246, Srid::WGS84->value),
+]);
+
+Place::create([
+    'name' => 'Tower Bridge',
+    'location' => new Point(51.5055, -0.0754, Srid::WGS84->value),
+]);
+
+Place::create([
+    'name' => 'Buckingham Palace',
+    'location' => new Point(51.5014, -0.1419, Srid::WGS84->value),
+]);
+
+// Find places within 1km of a location
+$myLocation = new Point(51.5074, -0.1278, Srid::WGS84->value); // Near Trafalgar Square
+
+$nearby = Place::query()
+    ->whereDistanceSphere('location', $myLocation, '<=', 1000)
+    ->withDistanceSphere('location', $myLocation, 'distance_meters')
+    ->orderByDistanceSphere('location', $myLocation)
+    ->get();
+
+foreach ($nearby as $place) {
+    echo sprintf(
+        "%s is %.0f meters away\n",
+        $place->name,
+        $place->distance_meters
+    );
+}
+
+// Output:
+// Big Ben is 286 meters away
+// Buckingham Palace is 980 meters away
+```
+
+## Next Steps
+
+You now have a working spatial model! Here's what to explore next:
+
+<CardGroup cols={2}>
+  <Card title="Geometry Types" icon="shapes" href="/core-concepts/geometry-objects">
+    Learn about all available geometry types and their methods
+  </Card>
+  <Card title="Spatial Queries" icon="magnifying-glass" href="/guides/querying-spatial-data">
+    Master all the spatial query scopes and functions
+  </Card>
+  <Card title="Advanced Usage" icon="gear" href="/advanced/custom-geometry-classes">
+    Custom geometry classes, macros, and advanced patterns
+  </Card>
+  <Card title="API Reference" icon="book" href="/api-reference/geometry-classes">
+    Complete API documentation for all classes and methods
+  </Card>
+</CardGroup>

@@ -1,0 +1,147 @@
+---
+title: Enums
+description: Reference for enums in Laravel Eloquent Spatial
+---
+
+## Overview
+
+Laravel Eloquent Spatial provides enums for commonly used spatial reference identifiers (SRID) to ensure type safety and consistency when working with coordinate systems.
+
+## Srid Enum
+
+Spatial Reference System Identifiers (SRID) identify the type of coordinate system to use for geometry objects. The `Srid` enum provides predefined values for commonly used coordinate systems.
+
+```php
+namespace MatanYadaev\EloquentSpatial\Enums;
+
+enum Srid: int
+{
+    case WGS84 = 4326;
+    case WEB_MERCATOR = 3857;
+}
+```
+
+### Available Values
+
+#### WGS84
+
+The World Geodetic System 1984 (WGS84) is the most commonly used geographic coordinate system.
+
+**Value:** `4326`
+
+**Type:** Geographic coordinate system
+
+**Description:** WGS84 is the standard coordinate system used by GPS and most modern mapping applications. It represents positions on Earth using latitude and longitude coordinates.
+
+**Reference:** [EPSG:4326 - WGS 84](https://epsg.org/crs_4326/WGS-84.html)
+
+**Example:**
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\Point;
+use MatanYadaev\EloquentSpatial\Enums\Srid;
+
+$point = new Point(lat: 28.123, lng: -81.456, srid: Srid::WGS84);
+// Equivalent to:
+$point = new Point(lat: 28.123, lng: -81.456, srid: 4326);
+```
+
+---
+
+#### WEB_MERCATOR
+
+Web Mercator (also known as Pseudo-Mercator or Spherical Mercator) is a variant of the Mercator projection used by most web mapping applications.
+
+**Value:** `3857`
+
+**Type:** Projected coordinate system
+
+**Description:** Web Mercator is commonly used in web mapping applications like Google Maps, OpenStreetMap, and Bing Maps. It projects the spherical Earth onto a flat plane, making it suitable for web tile-based mapping.
+
+**Reference:** [EPSG:3857 - WGS 84 / Pseudo-Mercator](https://epsg.org/crs_3857/WGS-84-Pseudo-Mercator.html)
+
+**Example:**
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\Point;
+use MatanYadaev\EloquentSpatial\Enums\Srid;
+
+$point = new Point(lat: 28.123, lng: -81.456, srid: Srid::WEB_MERCATOR);
+// Equivalent to:
+$point = new Point(lat: 28.123, lng: -81.456, srid: 3857);
+```
+
+---
+
+## Usage
+
+You can use the `Srid` enum wherever an SRID is accepted:
+
+### In Constructors
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\Point;
+use MatanYadaev\EloquentSpatial\Objects\Polygon;
+use MatanYadaev\EloquentSpatial\Enums\Srid;
+
+// Point with WGS84
+$point = new Point(lat: 28.123, lng: -81.456, srid: Srid::WGS84);
+
+// Polygon with Web Mercator
+$polygon = new Polygon([
+    new LineString([
+        new Point(0, 0),
+        new Point(1, 0),
+        new Point(1, 1),
+        new Point(0, 1),
+        new Point(0, 0),
+    ]),
+], Srid::WEB_MERCATOR);
+```
+
+### In Static Factory Methods
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\Point;
+use MatanYadaev\EloquentSpatial\Enums\Srid;
+
+// From JSON with WGS84
+$point = Point::fromJson(
+    '{"type":"Point","coordinates":[-81.456,28.123]}',
+    Srid::WGS84
+);
+
+// From WKT with Web Mercator
+$point = Point::fromWkt(
+    'POINT(-81.456 28.123)',
+    Srid::WEB_MERCATOR
+);
+
+// From Array with WGS84
+$point = Point::fromArray(
+    ['type' => 'Point', 'coordinates' => [-81.456, 28.123]],
+    Srid::WGS84
+);
+```
+
+### Default SRID
+
+If you don't specify an SRID when creating geometry objects, the package uses `Srid::WGS84` (4326) as the default.
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\Point;
+
+// These are equivalent:
+$point1 = new Point(28.123, -81.456);
+$point2 = new Point(28.123, -81.456, Srid::WGS84);
+$point3 = new Point(28.123, -81.456, 4326);
+```
+
+---
+
+## Reference Table
+
+| Enum Constant | Value | Type | Description |
+|--------------|-------|------|-------------|
+| `Srid::WGS84` | `4326` | Geographic | [World Geodetic System 1984](https://epsg.org/crs_4326/WGS-84.html) - Standard GPS coordinate system |
+| `Srid::WEB_MERCATOR` | `3857` | Projected | [Web Mercator](https://epsg.org/crs_3857/WGS-84-Pseudo-Mercator.html) - Used by web mapping applications |

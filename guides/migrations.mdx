@@ -1,0 +1,214 @@
+---
+title: Creating Migrations with Spatial Columns
+description: Learn how to create database migrations with spatial columns for storing geographic data
+---
+
+## Overview
+
+Laravel Eloquent Spatial extends Laravel's migration system to support spatial data types. This guide shows you how to create migrations with spatial columns for storing points, polygons, and other geographic data.
+
+## Creating a Migration
+
+First, generate a new model with a migration file:
+
+```bash
+php artisan make:model {modelName} --migration
+```
+
+## Adding Spatial Columns
+
+Use the `geometry()` method on the Blueprint to add spatial columns to your migration. The `geometry()` method accepts a column name and an optional `subtype` parameter.
+
+### Basic Migration Example
+
+Here's a complete migration for a `places` table with spatial columns:
+
+```php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+
+class CreatePlacesTable extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('places', static function (Blueprint $table) {
+            $table->id();
+            $table->string('name')->unique();
+            $table->geometry('location', subtype: 'point')->nullable();
+            $table->geometry('area', subtype: 'polygon')->nullable();
+            $table->timestamps();
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('places');
+    }
+}
+```
+
+## Available Geometry Subtypes
+
+You can specify different geometry subtypes based on your needs:
+
+<CodeGroup>
+
+```php Point
+$table->geometry('location', subtype: 'point')->nullable();
+```
+
+```php LineString
+$table->geometry('path', subtype: 'linestring')->nullable();
+```
+
+```php Polygon
+$table->geometry('area', subtype: 'polygon')->nullable();
+```
+
+```php MultiPoint
+$table->geometry('locations', subtype: 'multipoint')->nullable();
+```
+
+```php MultiLineString
+$table->geometry('routes', subtype: 'multilinestring')->nullable();
+```
+
+```php MultiPolygon
+$table->geometry('regions', subtype: 'multipolygon')->nullable();
+```
+
+```php GeometryCollection
+$table->geometry('mixed_data', subtype: 'geometrycollection')->nullable();
+```
+
+```php Generic Geometry
+$table->geometry('data')->nullable();
+```
+
+</CodeGroup>
+
+## Running the Migration
+
+After creating your migration file, run it with:
+
+```bash
+php artisan migrate
+```
+
+## Configuring Your Model
+
+After creating the migration, configure your model to use spatial data:
+
+### 1. Add the HasSpatial Trait
+
+```php
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use MatanYadaev\EloquentSpatial\Objects\Point;
+use MatanYadaev\EloquentSpatial\Objects\Polygon;
+use MatanYadaev\EloquentSpatial\Traits\HasSpatial;
+
+/**
+ * @property Point $location
+ * @property Polygon $area
+ */
+class Place extends Model
+{
+    use HasSpatial;
+
+    protected $fillable = [
+        'name',
+        'location',
+        'area',
+    ];
+
+    protected $casts = [
+        'location' => Point::class,
+        'area' => Polygon::class,
+    ];
+}
+```
+
+### 2. Create Records with Spatial Data
+
+```php
+use App\Models\Place;
+use MatanYadaev\EloquentSpatial\Objects\Point;
+use MatanYadaev\EloquentSpatial\Objects\Polygon;
+use MatanYadaev\EloquentSpatial\Objects\LineString;
+
+$londonEye = Place::create([
+    'name' => 'London Eye',
+    'location' => new Point(51.5032973, -0.1217424),
+]);
+
+$vaticanCity = Place::create([
+    'name' => 'Vatican City',
+    'area' => new Polygon([
+        new LineString([
+            new Point(12.455363273620605, 41.90746728266806),
+            new Point(12.450309991836548, 41.906636872349075),
+            new Point(12.445632219314575, 41.90197359839437),
+            new Point(12.447413206100464, 41.90027269624499),
+            new Point(12.457906007766724, 41.90000118654431),
+            new Point(12.458517551422117, 41.90281205461268),
+            new Point(12.457584142684937, 41.903107507989986),
+            new Point(12.457734346389769, 41.905918239316286),
+            new Point(12.45572805404663, 41.90637337450963),
+            new Point(12.455363273620605, 41.90746728266806),
+        ]),
+    ]),
+]);
+```
+
+## Using SRID (Spatial Reference Identifier)
+
+By default, spatial columns use SRID 0. You can specify a SRID when creating geometry objects:
+
+```php
+use MatanYadaev\EloquentSpatial\Enums\Srid;
+
+$whiteHouse = Place::create([
+    'name' => 'White House',
+    'location' => new Point(38.8976763, -77.0365298, Srid::WGS84->value),
+]);
+```
+
+### Setting a Default SRID
+
+You can set a default SRID for your entire application in a service provider:
+
+```php
+use MatanYadaev\EloquentSpatial\EloquentSpatial;
+use MatanYadaev\EloquentSpatial\Enums\Srid;
+use Illuminate\Support\ServiceProvider;
+
+class AppServiceProvider extends ServiceProvider
+{
+    public function boot(): void
+    {
+        // Set the default SRID to WGS84 (EPSG:4326)
+        EloquentSpatial::setDefaultSrid(Srid::WGS84);
+    }
+}
+```
+
+## Supported Databases
+
+Laravel Eloquent Spatial supports the following databases:
+
+- MySQL 5.7/8
+- MariaDB 10
+- Postgres 12/13/14/15/16 with PostGIS 3.4
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Querying Spatial Data" icon="magnifying-glass" href="/guides/querying-spatial-data">
+    Learn how to query spatial data using scopes
+  </Card>
+  <Card title="Working with Formats" icon="file-code" href="/guides/working-with-formats">
+    Convert between WKT, WKB, and GeoJSON formats
+  </Card>
+</CardGroup>

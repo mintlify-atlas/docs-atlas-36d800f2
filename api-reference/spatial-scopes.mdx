@@ -1,0 +1,642 @@
+---
+title: Spatial Scopes
+description: Complete reference for all spatial query scopes in Laravel Eloquent Spatial
+---
+
+## Overview
+
+Spatial scopes are query builder methods that enable you to perform spatial operations on your Eloquent models. These scopes are available on models that use the `HasSpatial` trait.
+
+## Distance Scopes
+
+### withDistance
+
+Retrieves the distance between two geometry objects. Uses MySQL's [ST_Distance](https://dev.mysql.com/doc/refman/8.0/en/spatial-relation-functions-object-shapes.html#function_st-distance) function.
+
+```php
+withDistance(
+    Geometry|string $column,
+    Geometry|string $geometryOrColumn,
+    string $alias = 'distance'
+): void
+```
+
+<ParamField path="column" type="Geometry|string" required>
+  The column name or Geometry object to measure distance from
+</ParamField>
+
+<ParamField path="geometryOrColumn" type="Geometry|string" required>
+  The geometry object or column name to measure distance to
+</ParamField>
+
+<ParamField path="alias" type="string" default="distance">
+  The alias for the distance column in the result set
+</ParamField>
+
+**Example:**
+
+```php
+Place::create(['location' => new Point(0, 0, 4326)]);
+
+$placeWithDistance = Place::query()
+    ->withDistance('location', new Point(1, 1, 4326))
+    ->first();
+
+echo $placeWithDistance->distance; // 156897.79947260793
+
+// when using alias:
+$placeWithDistance = Place::query()
+    ->withDistance('location', new Point(1, 1, 4326), 'distance_in_meters')
+    ->first();
+
+echo $placeWithDistance->distance_in_meters; // 156897.79947260793
+```
+
+---
+
+### whereDistance
+
+Filters records by distance. Uses MySQL's [ST_Distance](https://dev.mysql.com/doc/refman/8.0/en/spatial-relation-functions-object-shapes.html#function_st-distance) function.
+
+```php
+whereDistance(
+    Geometry|string $column,
+    Geometry|string $geometryOrColumn,
+    string $operator,
+    int|float $value
+): void
+```
+
+<ParamField path="column" type="Geometry|string" required>
+  The column name or Geometry object to measure distance from
+</ParamField>
+
+<ParamField path="geometryOrColumn" type="Geometry|string" required>
+  The geometry object or column name to measure distance to
+</ParamField>
+
+<ParamField path="operator" type="string" required>
+  Comparison operator (e.g., `<`, `<=`, `>`, `>=`, `=`, `!=`)
+</ParamField>
+
+<ParamField path="value" type="int|float" required>
+  The distance value to compare against
+</ParamField>
+
+**Example:**
+
+```php
+Place::create(['location' => new Point(0, 0, 4326)]);
+Place::create(['location' => new Point(50, 50, 4326)]);
+
+$placesCountWithinDistance = Place::query()
+    ->whereDistance('location', new Point(1, 1, 4326), '<', 160000)
+    ->count();
+
+echo $placesCountWithinDistance; // 1
+```
+
+---
+
+### orderByDistance
+
+Orders records by distance. Uses MySQL's [ST_Distance](https://dev.mysql.com/doc/refman/8.0/en/spatial-relation-functions-object-shapes.html#function_st-distance) function.
+
+```php
+orderByDistance(
+    Geometry|string $column,
+    Geometry|string $geometryOrColumn,
+    string $direction = 'asc'
+): void
+```
+
+<ParamField path="column" type="Geometry|string" required>
+  The column name or Geometry object to measure distance from
+</ParamField>
+
+<ParamField path="geometryOrColumn" type="Geometry|string" required>
+  The geometry object or column name to measure distance to
+</ParamField>
+
+<ParamField path="direction" type="string" default="asc">
+  Sort direction: `asc` for ascending, `desc` for descending
+</ParamField>
+
+**Example:**
+
+```php
+Place::create([
+    'name' => 'first',
+    'location' => new Point(0, 0, 4326),
+]);
+Place::create([
+    'name' => 'second',
+    'location' => new Point(50, 50, 4326),
+]);
+
+$places = Place::query()
+    ->orderByDistance('location', new Point(1, 1, 4326), 'desc')
+    ->get();
+
+echo $places[0]->name; // second
+echo $places[1]->name; // first
+```
+
+---
+
+## Spherical Distance Scopes
+
+### withDistanceSphere
+
+Retrieves the spherical distance between two geometry objects. Uses MySQL's [ST_Distance_Sphere](https://dev.mysql.com/doc/refman/8.0/en/spatial-convenience-functions.html#function_st-distance-sphere) function.
+
+```php
+withDistanceSphere(
+    Geometry|string $column,
+    Geometry|string $geometryOrColumn,
+    string $alias = 'distance'
+): void
+```
+
+<ParamField path="column" type="Geometry|string" required>
+  The column name or Geometry object to measure distance from
+</ParamField>
+
+<ParamField path="geometryOrColumn" type="Geometry|string" required>
+  The geometry object or column name to measure distance to
+</ParamField>
+
+<ParamField path="alias" type="string" default="distance">
+  The alias for the distance column in the result set
+</ParamField>
+
+**Example:**
+
+```php
+Place::create(['location' => new Point(0, 0, 4326)]);
+
+$placeWithDistance = Place::query()
+    ->withDistanceSphere('location', new Point(1, 1, 4326))
+    ->first();
+
+echo $placeWithDistance->distance; // 157249.59776850493
+
+// when using alias:
+$placeWithDistance = Place::query()
+    ->withDistanceSphere('location', new Point(1, 1, 4326), 'distance_in_meters')
+    ->first();
+
+echo $placeWithDistance->distance_in_meters; // 157249.59776850493
+```
+
+---
+
+### whereDistanceSphere
+
+Filters records by spherical distance. Uses MySQL's [ST_Distance_Sphere](https://dev.mysql.com/doc/refman/8.0/en/spatial-convenience-functions.html#function_st-distance-sphere) function.
+
+```php
+whereDistanceSphere(
+    Geometry|string $column,
+    Geometry|string $geometryOrColumn,
+    string $operator,
+    int|float $value
+): void
+```
+
+<ParamField path="column" type="Geometry|string" required>
+  The column name or Geometry object to measure distance from
+</ParamField>
+
+<ParamField path="geometryOrColumn" type="Geometry|string" required>
+  The geometry object or column name to measure distance to
+</ParamField>
+
+<ParamField path="operator" type="string" required>
+  Comparison operator (e.g., `<`, `<=`, `>`, `>=`, `=`, `!=`)
+</ParamField>
+
+<ParamField path="value" type="int|float" required>
+  The distance value to compare against
+</ParamField>
+
+**Example:**
+
+```php
+Place::create(['location' => new Point(0, 0, 4326)]);
+Place::create(['location' => new Point(50, 50, 4326)]);
+
+$placesCountWithinDistance = Place::query()
+    ->whereDistanceSphere('location', new Point(1, 1, 4326), '<', 160000)
+    ->count();
+
+echo $placesCountWithinDistance; // 1
+```
+
+---
+
+### orderByDistanceSphere
+
+Orders records by spherical distance. Uses MySQL's [ST_Distance_Sphere](https://dev.mysql.com/doc/refman/8.0/en/spatial-convenience-functions.html#function_st-distance-sphere) function.
+
+```php
+orderByDistanceSphere(
+    Geometry|string $column,
+    Geometry|string $geometryOrColumn,
+    string $direction = 'asc'
+): void
+```
+
+<ParamField path="column" type="Geometry|string" required>
+  The column name or Geometry object to measure distance from
+</ParamField>
+
+<ParamField path="geometryOrColumn" type="Geometry|string" required>
+  The geometry object or column name to measure distance to
+</ParamField>
+
+<ParamField path="direction" type="string" default="asc">
+  Sort direction: `asc` for ascending, `desc` for descending
+</ParamField>
+
+**Example:**
+
+```php
+Place::create([
+    'name' => 'first',
+    'location' => new Point(0, 0, 4326),
+]);
+Place::create([
+    'name' => 'second',
+    'location' => new Point(100, 100, 4326),
+]);
+
+$places = Place::query()
+    ->orderByDistanceSphere('location', new Point(1, 1, 4326), 'desc')
+    ->get();
+
+echo $places[0]->name; // second
+echo $places[1]->name; // first
+```
+
+---
+
+## Spatial Relationship Scopes
+
+### whereWithin
+
+Filters records where the geometry is within another geometry. Uses MySQL's [ST_Within](https://dev.mysql.com/doc/refman/8.0/en/spatial-relation-functions-object-shapes.html#function_st-within) function.
+
+```php
+whereWithin(
+    Geometry|string $column,
+    Geometry|string $geometryOrColumn
+): void
+```
+
+<ParamField path="column" type="Geometry|string" required>
+  The column name or Geometry object to test
+</ParamField>
+
+<ParamField path="geometryOrColumn" type="Geometry|string" required>
+  The geometry object or column name to test against
+</ParamField>
+
+**Example:**
+
+```php
+Place::create(['location' => new Point(0, 0, 4326)]);
+
+Place::query()
+    ->whereWithin('location', Polygon::fromJson('{"type":"Polygon","coordinates":[[[-1,-1],[1,-1],[1,1],[-1,1],[-1,-1]]]}'))
+    ->exists(); // true
+```
+
+---
+
+### whereNotWithin
+
+Filters records where the geometry is not within another geometry. Uses MySQL's [ST_Within](https://dev.mysql.com/doc/refman/8.0/en/spatial-relation-functions-object-shapes.html#function_st-within) function.
+
+```php
+whereNotWithin(
+    Geometry|string $column,
+    Geometry|string $geometryOrColumn
+): void
+```
+
+<ParamField path="column" type="Geometry|string" required>
+  The column name or Geometry object to test
+</ParamField>
+
+<ParamField path="geometryOrColumn" type="Geometry|string" required>
+  The geometry object or column name to test against
+</ParamField>
+
+**Example:**
+
+```php
+Place::create(['location' => new Point(0, 0, 4326)]);
+
+Place::query()
+    ->whereNotWithin('location', Polygon::fromJson('{"type":"Polygon","coordinates":[[[-1,-1],[1,-1],[1,1],[-1,1],[-1,-1]]]}'))
+    ->exists(); // false
+```
+
+---
+
+### whereContains
+
+Filters records where the geometry contains another geometry. Uses MySQL's [ST_Contains](https://dev.mysql.com/doc/refman/8.0/en/spatial-relation-functions-object-shapes.html#function_st-contains) function.
+
+```php
+whereContains(
+    Geometry|string $column,
+    Geometry|string $geometryOrColumn
+): void
+```
+
+<ParamField path="column" type="Geometry|string" required>
+  The column name or Geometry object to test
+</ParamField>
+
+<ParamField path="geometryOrColumn" type="Geometry|string" required>
+  The geometry object or column name to test against
+</ParamField>
+
+**Example:**
+
+```php
+Place::create(['area' => Polygon::fromJson('{"type":"Polygon","coordinates":[[[-1,-1],[1,-1],[1,1],[-1,1],[-1,-1]]]}'),]);
+
+Place::query()
+    ->whereContains('area', new Point(0, 0, 4326))
+    ->exists(); // true
+```
+
+---
+
+### whereNotContains
+
+Filters records where the geometry does not contain another geometry. Uses MySQL's [ST_Contains](https://dev.mysql.com/doc/refman/8.0/en/spatial-relation-functions-object-shapes.html#function_st-contains) function.
+
+```php
+whereNotContains(
+    Geometry|string $column,
+    Geometry|string $geometryOrColumn
+): void
+```
+
+<ParamField path="column" type="Geometry|string" required>
+  The column name or Geometry object to test
+</ParamField>
+
+<ParamField path="geometryOrColumn" type="Geometry|string" required>
+  The geometry object or column name to test against
+</ParamField>
+
+**Example:**
+
+```php
+Place::create(['area' => Polygon::fromJson('{"type":"Polygon","coordinates":[[[-1,-1],[1,-1],[1,1],[-1,1],[-1,-1]]]}'),]);
+
+Place::query()
+    ->whereNotContains('area', new Point(0, 0, 4326))
+    ->exists(); // false
+```
+
+---
+
+### whereTouches
+
+Filters records where the geometry touches another geometry. Uses MySQL's [ST_Touches](https://dev.mysql.com/doc/refman/8.0/en/spatial-relation-functions-object-shapes.html#function_st-touches) function.
+
+```php
+whereTouches(
+    Geometry|string $column,
+    Geometry|string $geometryOrColumn
+): void
+```
+
+<ParamField path="column" type="Geometry|string" required>
+  The column name or Geometry object to test
+</ParamField>
+
+<ParamField path="geometryOrColumn" type="Geometry|string" required>
+  The geometry object or column name to test against
+</ParamField>
+
+**Example:**
+
+```php
+Place::create(['location' => new Point(0, 0, 4326)]);
+
+Place::query()
+    ->whereTouches('location', Polygon::fromJson('{"type":"Polygon","coordinates":[[[-1,-1],[0,-1],[0,0],[-1,0],[-1,-1]]]}'))
+    ->exists(); // true
+```
+
+---
+
+### whereIntersects
+
+Filters records where the geometry intersects another geometry. Uses MySQL's [ST_Intersects](https://dev.mysql.com/doc/refman/8.0/en/spatial-relation-functions-object-shapes.html#function_st-intersects) function.
+
+```php
+whereIntersects(
+    Geometry|string $column,
+    Geometry|string $geometryOrColumn
+): void
+```
+
+<ParamField path="column" type="Geometry|string" required>
+  The column name or Geometry object to test
+</ParamField>
+
+<ParamField path="geometryOrColumn" type="Geometry|string" required>
+  The geometry object or column name to test against
+</ParamField>
+
+**Example:**
+
+```php
+Place::create(['location' => new Point(0, 0, 4326)]);
+
+Place::query()
+    ->whereIntersects('location', Polygon::fromJson('{"type":"Polygon","coordinates":[[[-1,-1],[1,-1],[1,1],[-1,1],[-1,-1]]]}'))
+    ->exists(); // true
+```
+
+---
+
+### whereCrosses
+
+Filters records where the geometry crosses another geometry. Uses MySQL's [ST_Crosses](https://dev.mysql.com/doc/refman/8.0/en/spatial-relation-functions-object-shapes.html#function_st-crosses) function.
+
+```php
+whereCrosses(
+    Geometry|string $column,
+    Geometry|string $geometryOrColumn
+): void
+```
+
+<ParamField path="column" type="Geometry|string" required>
+  The column name or Geometry object to test
+</ParamField>
+
+<ParamField path="geometryOrColumn" type="Geometry|string" required>
+  The geometry object or column name to test against
+</ParamField>
+
+**Example:**
+
+```php
+Place::create(['line_string' => LineString::fromJson('{"type":"LineString","coordinates":[[0,0],[2,0]]}')]);​⬤
+
+Place::query()
+    ->whereCrosses('line_string', Polygon::fromJson('{"type":"Polygon","coordinates":[[[-1,-1],[1,-1],[1,1],[-1,1],[-1,-1]]]}'))
+    ->exists(); // true
+```
+
+---
+
+### whereDisjoint
+
+Filters records where the geometry is disjoint from another geometry. Uses MySQL's [ST_Disjoint](https://dev.mysql.com/doc/refman/8.0/en/spatial-relation-functions-object-shapes.html#function_st-disjoint) function.
+
+```php
+whereDisjoint(
+    Geometry|string $column,
+    Geometry|string $geometryOrColumn
+): void
+```
+
+<ParamField path="column" type="Geometry|string" required>
+  The column name or Geometry object to test
+</ParamField>
+
+<ParamField path="geometryOrColumn" type="Geometry|string" required>
+  The geometry object or column name to test against
+</ParamField>
+
+**Example:**
+
+```php
+Place::create(['location' => new Point(0, 0, 4326)]);
+
+Place::query()
+    ->whereDisjoint('location', Polygon::fromJson('{"type":"Polygon","coordinates":[[[-1,-1],[-0.5,-1],[-0.5,-0.5],[-1,-0.5],[-1,-1]]]}'))
+    ->exists(); // true
+```
+
+---
+
+### whereEquals
+
+Filters records where the geometry is spatially equal to another geometry. Uses MySQL's [ST_Equals](https://dev.mysql.com/doc/refman/8.0/en/spatial-relation-functions-object-shapes.html#function_st-equals) function.
+
+```php
+whereEquals(
+    Geometry|string $column,
+    Geometry|string $geometryOrColumn
+): void
+```
+
+<ParamField path="column" type="Geometry|string" required>
+  The column name or Geometry object to test
+</ParamField>
+
+<ParamField path="geometryOrColumn" type="Geometry|string" required>
+  The geometry object or column name to test against
+</ParamField>
+
+**Example:**
+
+```php
+Place::create(['location' => new Point(0, 0, 4326)]);
+
+Place::query()
+    ->whereEquals('location', new Point(0, 0, 4326))
+    ->exists(); // true
+```
+
+---
+
+## Utility Scopes
+
+### whereSrid
+
+Filters records by their Spatial Reference System Identifier (SRID). Uses MySQL's [ST_SRID](https://dev.mysql.com/doc/refman/8.0/en/gis-general-property-functions.html#function_st-srid) function.
+
+```php
+whereSrid(
+    Geometry|string $column,
+    string $operator,
+    int $value
+): void
+```
+
+<ParamField path="column" type="Geometry|string" required>
+  The column name or Geometry object to test
+</ParamField>
+
+<ParamField path="operator" type="string" required>
+  Comparison operator (e.g., `=`, `!=`, `<`, `>`, `<=`, `>=`)
+</ParamField>
+
+<ParamField path="value" type="int" required>
+  The SRID value to compare against
+</ParamField>
+
+**Example:**
+
+```php
+Place::create(['location' => new Point(0, 0, 4326)]);
+
+Place::query()
+    ->whereSrid('location', '=', 4326)
+    ->exists(); // true
+```
+
+---
+
+### withCentroid
+
+Retrieves the centroid of the geometry object. Uses MySQL's [ST_Centroid](https://dev.mysql.com/doc/refman/8.0/en/gis-polygon-property-functions.html#function_st-centroid) function.
+
+```php
+withCentroid(
+    Geometry|string $column,
+    string $alias = 'centroid'
+): void
+```
+
+<ParamField path="column" type="Geometry|string" required>
+  The column name or Geometry object to calculate centroid from
+</ParamField>
+
+<ParamField path="alias" type="string" default="centroid">
+  The alias for the centroid column in the result set
+</ParamField>
+
+**Example:**
+
+```php
+$polygon = Polygon::fromJson('{"type":"Polygon","coordinates":[[[-1,-1],[1,-1],[1,1],[-1,1],[-1,-1]]]}');
+Place::create(['polygon' => $polygon]);
+
+$placeWithCentroid = Place::query()
+    ->withCentroid('polygon')
+    ->withCasts(['centroid' => Point::class]) // This is important, otherwise the centroid will be returned as a binary string.
+    ->first();
+
+echo $placeWithDistance->centroid; // POINT(0 0)
+
+// when using alias:
+$placeWithCentroid = Place::query()
+    ->withCentroid('polygon', 'centroid_alias')
+    ->withCasts(['centroid_alias' => Point::class])
+    ->first();
+
+echo $placeWithDistance->centroid_alias; // POINT(0 0)
+```

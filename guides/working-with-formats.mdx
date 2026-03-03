@@ -1,0 +1,360 @@
+---
+title: Working with Spatial Data Formats
+description: Learn how to convert between WKT, WKB, and GeoJSON formats
+---
+
+## Overview
+
+Laravel Eloquent Spatial supports multiple spatial data formats for maximum flexibility. You can easily convert between Well-Known Text (WKT), Well-Known Binary (WKB), and GeoJSON formats.
+
+## Supported Formats
+
+<CardGroup cols={3}>
+  <Card title="WKT" icon="text">
+    Well-Known Text - Human-readable text format
+  </Card>
+  <Card title="WKB" icon="binary">
+    Well-Known Binary - Compact binary format
+  </Card>
+  <Card title="GeoJSON" icon="brackets-curly">
+    GeoJSON - Standard JSON format for geographic data
+  </Card>
+</CardGroup>
+
+## Creating Geometry from Formats
+
+All geometry classes provide static methods for creating objects from different formats.
+
+### From WKT (Well-Known Text)
+
+WKT is a human-readable text format for representing geometry:
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\Point;
+use MatanYadaev\EloquentSpatial\Objects\Polygon;
+use MatanYadaev\EloquentSpatial\Objects\LineString;
+use MatanYadaev\EloquentSpatial\Enums\Srid;
+
+// Create a Point from WKT
+$point = Point::fromWkt('POINT(0 180)');
+echo $point->latitude;  // 0
+echo $point->longitude; // 180
+
+// Create with SRID
+$pointWithSrid = Point::fromWkt('POINT(51.5074 -0.1278)', Srid::WGS84);
+echo $pointWithSrid->srid; // 4326
+
+// Create a LineString from WKT
+$lineString = LineString::fromWkt('LINESTRING(0 0, 1 1, 2 2)');
+
+// Create a Polygon from WKT
+$polygon = Polygon::fromWkt('POLYGON((0 0, 4 0, 4 4, 0 4, 0 0))');
+```
+
+### From WKB (Well-Known Binary)
+
+WKB is a compact binary format, often used for database storage:
+
+```php
+// From binary WKB
+$point = Point::fromWkb($wkbBinaryString);
+
+// From hexadecimal WKB
+$point = Point::fromWkb($wkbHexString);
+
+// WKB with SRID is automatically detected
+$pointWithSrid = Point::fromWkb($wkbWithSrid);
+echo $pointWithSrid->srid; // SRID from WKB
+```
+
+### From GeoJSON
+
+GeoJSON is the standard JSON format for geographic features:
+
+```php
+// From GeoJSON string
+$point = Point::fromJson('{"type":"Point","coordinates":[-0.1278,51.5074]}');
+
+// From GeoJSON with SRID
+$pointWithSrid = Point::fromJson(
+    '{"type":"Point","coordinates":[-0.1278,51.5074]}',
+    Srid::WGS84
+);
+
+// Complex geometries
+$polygon = Polygon::fromJson('{"type":"Polygon","coordinates":[[[-1,-1],[1,-1],[1,1],[-1,1],[-1,-1]]]}');
+```
+
+### From Array (GeoJSON Structure)
+
+You can also create geometry from a GeoJSON-structured array:
+
+```php
+$point = Point::fromArray([
+    'type' => 'Point',
+    'coordinates' => [-0.1278, 51.5074]
+]);
+
+$polygon = Polygon::fromArray([
+    'type' => 'Polygon',
+    'coordinates' => [
+        [
+            [-1, -1],
+            [1, -1],
+            [1, 1],
+            [-1, 1],
+            [-1, -1]
+        ]
+    ]
+], Srid::WGS84);
+```
+
+## Converting to Different Formats
+
+All geometry objects can be converted to different formats.
+
+### To WKT
+
+Convert geometry to Well-Known Text:
+
+```php
+$point = new Point(51.5074, -0.1278);
+
+echo $point->toWkt();
+// Output: POINT(-0.1278 51.5074)
+
+// toString() is an alias for toWkt()
+echo (string) $point;
+// Output: POINT(-0.1278 51.5074)
+```
+
+### To WKB
+
+Convert geometry to Well-Known Binary:
+
+```php
+$point = new Point(51.5074, -0.1278, Srid::WGS84->value);
+
+$wkb = $point->toWkb();
+// Returns binary string in MySQL format (includes SRID)
+```
+
+### To GeoJSON
+
+Convert geometry to GeoJSON string:
+
+```php
+$point = new Point(51.5074, -0.1278);
+
+echo $point->toJson();
+// Output: {"type":"Point","coordinates":[-0.1278,51.5074]}
+```
+
+### To Array
+
+Convert geometry to GeoJSON-structured array:
+
+```php
+$point = new Point(51.5074, -0.1278);
+
+$array = $point->toArray();
+// Returns:
+// [
+//     'type' => 'Point',
+//     'coordinates' => [-0.1278, 51.5074]
+// ]
+```
+
+### To FeatureCollection JSON
+
+Convert geometry to a GeoJSON FeatureCollection:
+
+```php
+$point = new Point(51.5074, -0.1278);
+
+echo $point->toFeatureCollectionJson();
+// Output:
+// {
+//   "type": "FeatureCollection",
+//   "features": [
+//     {
+//       "type": "Feature",
+//       "properties": {},
+//       "geometry": {
+//         "type": "Point",
+//         "coordinates": [-0.1278, 51.5074]
+//       }
+//     }
+//   ]
+// }
+```
+
+## Accessing Coordinates
+
+Get the raw coordinates from any geometry:
+
+```php
+$point = new Point(51.5074, -0.1278);
+
+$coords = $point->getCoordinates();
+// Returns: [-0.1278, 51.5074]
+
+// For Point objects, use properties
+echo $point->latitude;  // 51.5074
+echo $point->longitude; // -0.1278
+echo $point->srid;      // 0 (or specified SRID)
+```
+
+## Working with Complex Geometries
+
+### GeometryCollection
+
+```php
+use MatanYadaev\EloquentSpatial\Objects\GeometryCollection;
+
+$collection = new GeometryCollection([
+    new Point(0, 180),
+    new Polygon([
+        new LineString([
+            new Point(0, 180),
+            new Point(1, 179),
+            new Point(2, 178),
+            new Point(3, 177),
+            new Point(0, 180),
+        ]),
+    ]),
+]);
+
+// Access geometries
+echo $collection->getGeometries()[0]->latitude; // 0
+
+// Or use array access
+echo $collection[0]->latitude; // 0
+
+// Convert to JSON
+echo $collection->toJson();
+```
+
+## Format Conversion Examples
+
+### WKT to GeoJSON
+
+```php
+$wkt = 'POINT(-0.1278 51.5074)';
+$point = Point::fromWkt($wkt);
+echo $point->toJson();
+// Output: {"type":"Point","coordinates":[-0.1278,51.5074]}
+```
+
+### GeoJSON to WKT
+
+```php
+$geoJson = '{"type":"Point","coordinates":[-0.1278,51.5074]}';
+$point = Point::fromJson($geoJson);
+echo $point->toWkt();
+// Output: POINT(-0.1278 51.5074)
+```
+
+### WKB to GeoJSON
+
+```php
+$point = Point::fromWkb($wkbBinary);
+echo $point->toJson();
+```
+
+### GeoJSON to WKB
+
+```php
+$point = Point::fromJson('{"type":"Point","coordinates":[-0.1278,51.5074]}');
+$wkb = $point->toWkb();
+```
+
+## Practical Examples
+
+### Storing GeoJSON from API
+
+```php
+use App\Models\Place;
+use MatanYadaev\EloquentSpatial\Objects\Point;
+
+// Receive GeoJSON from an API request
+$geoJson = $request->input('location');
+// {"type":"Point","coordinates":[-0.1278,51.5074]}
+
+$place = Place::create([
+    'name' => 'London',
+    'location' => Point::fromJson($geoJson),
+]);
+```
+
+### Returning GeoJSON in API Response
+
+```php
+use App\Models\Place;
+
+$place = Place::find(1);
+
+return response()->json([
+    'name' => $place->name,
+    'location' => $place->location->toArray(), // GeoJSON structure
+]);
+
+// Output:
+// {
+//   "name": "London",
+//   "location": {
+//     "type": "Point",
+//     "coordinates": [-0.1278, 51.5074]
+//   }
+// }
+```
+
+### Working with External Mapping Services
+
+```php
+// Convert from Leaflet/OpenLayers format [lng, lat]
+$leafletCoords = [-0.1278, 51.5074];
+$point = new Point($leafletCoords[1], $leafletCoords[0]);
+
+// Export to Google Maps format {lat, lng}
+$googleMapsFormat = [
+    'lat' => $point->latitude,
+    'lng' => $point->longitude,
+];
+```
+
+## JSON Serialization
+
+Geometry objects automatically serialize to GeoJSON when converted to JSON:
+
+```php
+use App\Models\Place;
+
+$place = Place::find(1);
+
+return response()->json($place);
+// The location field will automatically be converted to GeoJSON
+```
+
+## Available Geometry Classes
+
+All these classes support the same format conversion methods:
+
+- `Point`
+- `MultiPoint`
+- `LineString`
+- `MultiLineString`
+- `Polygon`
+- `MultiPolygon`
+- `GeometryCollection`
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Querying Spatial Data" icon="magnifying-glass" href="/guides/querying-spatial-data">
+    Learn how to query spatial data using scopes
+  </Card>
+  <Card title="Extending" icon="puzzle-piece" href="/guides/extending">
+    Extend with macros and custom classes
+  </Card>
+</CardGroup>

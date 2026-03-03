@@ -1,0 +1,139 @@
+---
+title: Installation
+description: Install Laravel Eloquent Spatial via Composer and configure your database
+---
+
+Get Laravel Eloquent Spatial up and running in your Laravel application.
+
+## Requirements
+
+Before installing, ensure your environment meets these requirements:
+
+- PHP 8.1 or higher
+- Laravel 10.x, 11.x, or 12.x
+- One of the following databases:
+  - MySQL 5.7 or 8.x
+  - MariaDB 10.x
+  - PostgreSQL 12, 13, 14, 15, or 16 with PostGIS 3.4
+
+<Note>
+  For PostgreSQL, you must have the PostGIS extension installed and enabled in your database.
+</Note>
+
+## Install via Composer
+
+<Steps>
+  <Step title="Install the package">
+    Install Laravel Eloquent Spatial using Composer:
+
+    ```bash
+    composer require matanyadaev/laravel-eloquent-spatial
+    ```
+
+    The package will be automatically discovered by Laravel.
+  </Step>
+
+  <Step title="Configure PostgreSQL (if applicable)">
+    If you're using PostgreSQL, enable the PostGIS extension in your database:
+
+    ```sql
+    CREATE EXTENSION IF NOT EXISTS postgis;
+    ```
+
+    You can run this command using a migration:
+
+    ```php
+    use Illuminate\Database\Migrations\Migration;
+    use Illuminate\Support\Facades\DB;
+
+    return new class extends Migration
+    {
+        public function up(): void
+        {
+            DB::statement('CREATE EXTENSION IF NOT EXISTS postgis');
+        }
+
+        public function down(): void
+        {
+            DB::statement('DROP EXTENSION IF EXISTS postgis');
+        }
+    };
+    ```
+  </Step>
+
+  <Step title="Verify installation">
+    The package is now installed! No additional configuration files or migrations are needed.
+
+    You can verify the installation by checking that the package appears in your `composer.json`:
+
+    ```json
+    "require": {
+        "matanyadaev/laravel-eloquent-spatial": "^4.0"
+    }
+    ```
+  </Step>
+</Steps>
+
+## Optional Configuration
+
+While the package works out of the box, you may want to customize some settings.
+
+### Set Default SRID
+
+By default, geometries use SRID 0 (no spatial reference system). You can set a default SRID in your `AppServiceProvider`:
+
+```php
+use MatanYadaev\EloquentSpatial\EloquentSpatial;
+use MatanYadaev\EloquentSpatial\Enums\Srid;
+use Illuminate\Support\ServiceProvider;
+
+class AppServiceProvider extends ServiceProvider
+{
+    public function boot(): void
+    {
+        // Set the default SRID to WGS84 (EPSG:4326)
+        EloquentSpatial::setDefaultSrid(Srid::WGS84);
+    }
+}
+```
+
+<Info>
+  **What is SRID?** Spatial Reference System Identifier (SRID) defines the coordinate system for spatial data. Common values include:
+  - `4326` (WGS84) - Standard GPS coordinates
+  - `3857` (Web Mercator) - Used by web mapping applications
+</Info>
+
+### Use Custom Geometry Classes
+
+You can extend the built-in geometry classes with your own custom implementations:
+
+```php
+use MatanYadaev\EloquentSpatial\EloquentSpatial;
+use App\ValueObjects\ExtendedPoint;
+
+class AppServiceProvider extends ServiceProvider
+{
+    public function boot(): void
+    {
+        EloquentSpatial::usePoint(ExtendedPoint::class);
+    }
+}
+```
+
+See the Advanced Usage section for more details on custom geometry classes.
+
+## Database Configuration
+
+No special database configuration is required. The package works with your existing Laravel database setup.
+
+<Tip>
+  If you're using MySQL 8.0+, the package automatically handles coordinate axis ordering differences between MySQL and other databases.
+</Tip>
+
+## Next Steps
+
+Now that you've installed the package, you're ready to create your first spatial model:
+
+<Card title="Quick Start Guide" icon="rocket" href="/quickstart">
+  Create your first model with spatial data in minutes
+</Card>

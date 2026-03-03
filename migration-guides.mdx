@@ -1,0 +1,229 @@
+---
+title: Migration Guides
+description: Upgrade guides for migrating between major versions of Laravel Eloquent Spatial
+---
+
+This guide helps you migrate between major versions of Laravel Eloquent Spatial. Each major version may introduce breaking changes that require updates to your code.
+
+## Migrating to v4.0
+
+<Accordion title="Breaking Changes in v4.0.0">
+
+### SpatialBuilder Replaced with Scopes
+
+The most significant change in v4.0 is the removal of the `SpatialBuilder` in favor of query scopes provided by the `HasSpatial` trait.
+
+#### Before (v3.x)
+
+```php
+use MatanYadaev\EloquentSpatial\SpatialBuilder;
+
+class Place extends Model
+{
+    // Model had to use SpatialBuilder
+    public function newEloquentBuilder($query): SpatialBuilder
+    {
+        return new SpatialBuilder($query);
+    }
+}
+
+// Usage
+$places = Place::query()
+    ->whereWithin('location', $polygon)
+    ->get();
+```
+
+#### After (v4.x)
+
+```php
+use MatanYadaev\EloquentSpatial\Traits\HasSpatial;
+
+class Place extends Model
+{
+    use HasSpatial;
+    
+    protected $casts = [
+        'location' => Point::class,
+    ];
+}
+
+// Usage - same query methods, but now using scopes
+$places = Place::query()
+    ->whereWithin('location', $polygon)
+    ->get();
+```
+
+**Migration steps:**
+
+1. Remove any custom `newEloquentBuilder()` method that returns `SpatialBuilder`
+2. Add the `HasSpatial` trait to your model
+3. Ensure your spatial columns are properly cast
+4. Your query code should work without changes
+
+### SRID Enum Support
+
+v4.0 adds support for using SRID enums in addition to integers.
+
+```php
+use MatanYadaev\EloquentSpatial\Enums\Srid;
+use MatanYadaev\EloquentSpatial\Objects\Point;
+
+// Now you can use the enum
+$point = new Point(lat: 40.7128, lng: -74.0060, srid: Srid::WGS84);
+
+// Integer values still work
+$point = new Point(lat: 40.7128, lng: -74.0060, srid: 4326);
+```
+
+### PHP 8.3 Support
+
+v4.0 adds official support for PHP 8.3. No breaking changes related to this, but you can now safely upgrade to PHP 8.3.
+
+</Accordion>
+
+## Migrating to v3.0
+
+<Accordion title="Breaking Changes in v3.0.0">
+
+### Laravel 10 Support
+
+v3.0 adds support for Laravel 10 and drops support for Laravel 9.
+
+**Migration steps:**
+
+1. Upgrade to Laravel 10 first
+2. Update the package:
+
+```bash
+composer require matanyadaev/laravel-eloquent-spatial:^3.0
+```
+
+3. Test your spatial queries to ensure compatibility
+
+### No Other Breaking Changes
+
+v3.0 is primarily a Laravel version bump. If your code works on v2.x with Laravel 9, it should work on v3.x with Laravel 10 without code changes.
+
+</Accordion>
+
+## Migrating to v2.0
+
+<Accordion title="Breaking Changes in v2.0.0">
+
+### Improved Casting System
+
+v2.0 introduces significant improvements to the casting system that affect how geometry data is stored and retrieved.
+
+#### Fixed `getOriginal()`
+
+In v1.x, calling `getOriginal()` on spatial attributes did not return the original value correctly. This is fixed in v2.0.
+
+```php
+$place = Place::find(1);
+$place->location = new Point(lat: 40.7128, lng: -74.0060);
+
+// v2.0 correctly returns the original Point object
+$original = $place->getOriginal('location');
+```
+
+#### Standard WKT Format
+
+v2.0 uses a more standard Well-Known Text (WKT) format for geometry serialization.
+
+**Before (v1.x):**
+WKT format may have been inconsistent or non-standard in some cases.
+
+**After (v2.x):**
+All geometry objects now use standard WKT format:
+
+```php
+$point = new Point(lat: 40.7128, lng: -74.0060);
+echo $point->toWkt(); // POINT(-74.0060 40.7128)
+
+$lineString = new LineString([
+    new Point(0, 0),
+    new Point(1, 1),
+]);
+echo $lineString->toWkt(); // LINESTRING(0 0, 1 1)
+```
+
+### Migration Steps
+
+1. Update the package:
+
+```bash
+composer require matanyadaev/laravel-eloquent-spatial:^2.0
+```
+
+2. Test any code that relies on `getOriginal()` for spatial attributes
+3. If you have stored WKT strings manually, verify they match the new standard format
+4. Run your test suite to catch any serialization issues
+
+### Database Compatibility
+
+v2.0 maintains backward compatibility with databases created in v1.x. The WKT changes only affect the PHP serialization layer, not the database storage format.
+
+</Accordion>
+
+## General Upgrade Tips
+
+<Accordion title="Best Practices for Upgrading">
+
+### 1. Review the Changelog
+
+Before upgrading, always review the [changelog](/changelog) for the specific version you're upgrading to. This will help you identify any changes that might affect your application.
+
+### 2. Update Dependencies
+
+```bash
+composer update matanyadaev/laravel-eloquent-spatial
+```
+
+### 3. Run Tests
+
+Ensure you have comprehensive tests for your spatial queries and operations. Run them after upgrading:
+
+```bash
+php artisan test
+```
+
+### 4. Test Common Operations
+
+Manually test these common operations after upgrading:
+
+- Creating models with spatial data
+- Updating spatial columns
+- Spatial queries (whereWithin, whereContains, etc.)
+- Distance calculations
+- Serialization (toJson, toArray)
+- WKT/WKB conversion
+
+### 5. Check for Deprecations
+
+Look for any deprecation warnings in your logs or console output. Address these before the next major version.
+
+### 6. Gradual Rollout
+
+For production applications, consider:
+
+- Testing in a staging environment first
+- Using feature flags to gradually enable new functionality
+- Having a rollback plan ready
+
+</Accordion>
+
+## Need Help?
+
+<Accordion title="Getting Support">
+
+If you encounter issues during migration:
+
+1. **Check the Documentation**: Review the [core concepts](/core-concepts/geometry-objects) and [querying spatial data](/guides/querying-spatial-data) sections
+2. **Search Issues**: Look for similar issues on [GitHub](https://github.com/MatanYadaev/laravel-eloquent-spatial/issues)
+3. **Ask for Help**: Open a new issue with:
+   - Your Laravel version
+   - Your package version (before and after)
+   - Code examples showing the problem
+   - Error messages or unexpected behavior
+
+</Accordion>
