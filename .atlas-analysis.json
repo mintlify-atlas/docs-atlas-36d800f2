@@ -1,0 +1,110 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "Laravel Eloquent Spatial",
+  "projectDescription": "Laravel package for working with spatial data types and functions in Eloquent models.",
+  "theme": "palm",
+  "primaryColor": "#EF3B2D",
+  "lightColor": "#FEE2E2",
+  "darkColor": "#991B1B",
+  "navigation": {
+    "groups": [
+      {
+        "group": "Get Started",
+        "pages": [
+          "introduction",
+          "installation",
+          "quickstart"
+        ]
+      },
+      {
+        "group": "Core Concepts",
+        "pages": [
+          "core-concepts/geometry-objects",
+          "core-concepts/spatial-casts",
+          "core-concepts/coordinate-systems"
+        ]
+      },
+      {
+        "group": "Guides",
+        "pages": [
+          "guides/migrations",
+          "guides/querying-spatial-data",
+          "guides/working-with-formats",
+          "guides/extending"
+        ]
+      },
+      {
+        "group": "API Reference",
+        "pages": [
+          "api-reference/geometry-classes",
+          "api-reference/spatial-scopes",
+          "api-reference/enums"
+        ]
+      },
+      {
+        "group": "Advanced",
+        "pages": [
+          "advanced/custom-geometry-classes",
+          "advanced/macros",
+          "advanced/troubleshooting"
+        ]
+      },
+      {
+        "group": "Resources",
+        "pages": [
+          "changelog",
+          "migration-guides"
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Spatial data types (Point, LineString, Polygon, MultiPoint, MultiLineString, MultiPolygon, GeometryCollection)",
+    "Eloquent model integration with automatic casting",
+    "Spatial query scopes (distance, within, contains, intersects, touches, crosses, etc.)",
+    "Multiple format support (WKT, WKB, GeoJSON)",
+    "SRID support for coordinate systems",
+    "Multi-database support (MySQL 5.7/8, MariaDB 10, PostgreSQL 12-16 with PostGIS)",
+    "Custom geometry class extensions",
+    "Macroable geometry classes",
+    "HasSpatial trait for spatial query capabilities"
+  ],
+  "publicApiSurface": [
+    "MatanYadaev\\EloquentSpatial\\Objects\\Point",
+    "MatanYadaev\\EloquentSpatial\\Objects\\MultiPoint",
+    "MatanYadaev\\EloquentSpatial\\Objects\\LineString",
+    "MatanYadaev\\EloquentSpatial\\Objects\\MultiLineString",
+    "MatanYadaev\\EloquentSpatial\\Objects\\Polygon",
+    "MatanYadaev\\EloquentSpatial\\Objects\\MultiPolygon",
+    "MatanYadaev\\EloquentSpatial\\Objects\\GeometryCollection",
+    "MatanYadaev\\EloquentSpatial\\Objects\\Geometry",
+    "MatanYadaev\\EloquentSpatial\\Traits\\HasSpatial",
+    "MatanYadaev\\EloquentSpatial\\Enums\\Srid",
+    "MatanYadaev\\EloquentSpatial\\GeometryCast",
+    "MatanYadaev\\EloquentSpatial\\EloquentSpatial::usePoint()",
+    "MatanYadaev\\EloquentSpatial\\EloquentSpatial::useLineString()",
+    "MatanYadaev\\EloquentSpatial\\EloquentSpatial::usePolygon()",
+    "MatanYadaev\\EloquentSpatial\\EloquentSpatial::useMultiPoint()",
+    "MatanYadaev\\EloquentSpatial\\EloquentSpatial::useMultiLineString()",
+    "MatanYadaev\\EloquentSpatial\\EloquentSpatial::useMultiPolygon()",
+    "MatanYadaev\\EloquentSpatial\\EloquentSpatial::useGeometryCollection()",
+    "MatanYadaev\\EloquentSpatial\\EloquentSpatial::setDefaultSrid()",
+    "withDistance()",
+    "whereDistance()",
+    "orderByDistance()",
+    "withDistanceSphere()",
+    "whereDistanceSphere()",
+    "orderByDistanceSphere()",
+    "whereWithin()",
+    "whereNotWithin()",
+    "whereContains()",
+    "whereNotContains()",
+    "whereTouches()",
+    "whereIntersects()",
+    "whereCrosses()",
+    "whereDisjoint()",
+    "whereEquals()",
+    "whereSrid()",
+    "withCentroid()"
+  ]
+}
